@@ -28,25 +28,25 @@ browser's local storage — nothing is sent anywhere.
 - **Integrity** — every action is stored in an append-only, **hash-chained**
   event log; the screen verifies the chain (no gaps, nothing altered) and shows
   the full audit trail. Editing or deleting anything after the fact breaks the
-  chain and is flagged.
+  chain and is flagged. Also holds **full backup / restore** (verify-on-restore).
 
 ## The record model (important)
 
-This budget tier follows the **companion / printable ledger** approach: the
-**printed or PDF ledger is your official ATF record**. The app helps you keep
-it and print it; you store the output. Export a CSV regularly as backup.
+With the **ATF variance approved**, this app is the **electronic system of
+record**. The record is a tamper-evident, hash-chained, append-only log:
 
-There is no edit-in-place or delete: the only way to change a recorded value is
-a logged correction, so the record stays tamper-evident by construction.
+- There is no edit-in-place or delete — the only way to change a recorded value
+  is a **logged correction**, so the record stays tamper-evident by construction
+  (see the **Integrity** screen and `integrity.js`).
+- Print / Save-as-PDF and CSV remain available as the human-readable
+  **surrender copy**, but they are no longer the system of record — the log is.
 
-### Toward a paperless (electronic) record
+### Back up — it's now a compliance step
 
-The app already implements the *technical* properties an electronic system of
-record needs — a hash-chained, append-only log with no-gaps + tamper
-verification (see the **Integrity** screen and `integrity.js`). What it does
-**not** do is make the app your *sole legal* record: that requires **ATF
-approval (a variance)** plus a backup/continuity story. Until then, keep the
-Option A posture — the printed/exported ledger is the record of truth.
+Because the record lives on this machine, **your backup is the continuity copy
+and the surrender copy**. Use **Integrity → Download full backup (.json)**
+regularly. Restore verifies the chain on import and **refuses a tampered or
+corrupt backup** rather than loading it.
 
 > Not legal advice. Requirements summarized from 27 CFR Part 478. Confirm
 > current ATF rules and any state requirements for your situation before

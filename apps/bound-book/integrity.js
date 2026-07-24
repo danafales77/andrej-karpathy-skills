@@ -160,6 +160,34 @@
     return order.map(function (id) { return byId[id]; });
   }
 
+  // --- backup / continuity ---
+  // Full-fidelity backup: the entire event log, wrapped in a small versioned
+  // envelope. This is the record's continuity + surrender copy; unlike CSV it
+  // preserves the hash chain so integrity can be re-verified after a restore.
+  var BACKUP_APP = 'bound-book';
+  var BACKUP_VERSION = 1;
+
+  function makeBackup(log, exportedAt) {
+    return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: exportedAt, log: log };
+  }
+
+  // Parse and validate a backup file's text. Returns { ok, log } on success, or
+  // { ok:false, error } — including when the restored chain fails verification,
+  // so a tampered/corrupt backup is never silently loaded as the legal record.
+  function parseBackup(text) {
+    var data;
+    try { data = JSON.parse(text); }
+    catch (e) { return { ok: false, error: 'Not a valid backup file (could not read JSON).' }; }
+    if (!data || data.app !== BACKUP_APP || !Array.isArray(data.log)) {
+      return { ok: false, error: 'This does not look like a Bound Book backup.' };
+    }
+    var check = verifyChain(data.log);
+    if (!check.ok) {
+      return { ok: false, error: 'Backup failed the integrity check and was not loaded. ' + check.reason };
+    }
+    return { ok: true, log: data.log };
+  }
+
   return {
     GENESIS: GENESIS,
     sha256: sha256,
@@ -167,6 +195,8 @@
     hashEvent: hashEvent,
     appendEvent: appendEvent,
     verifyChain: verifyChain,
-    project: project
+    project: project,
+    makeBackup: makeBackup,
+    parseBackup: parseBackup
   };
 });

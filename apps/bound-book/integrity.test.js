@@ -77,6 +77,37 @@ test('project folds events into ledger entries', () => {
   assert.equal(entries[1].status, 'open');
 });
 
+test('makeBackup + parseBackup round-trips a valid log', () => {
+  const log = buildLog();
+  const text = JSON.stringify(I.makeBackup(log, '2026-07-27T00:00:00Z'));
+  const res = I.parseBackup(text);
+  assert.equal(res.ok, true);
+  assert.equal(res.log.length, 3);
+  assert.deepEqual(I.verifyChain(res.log), { ok: true, count: 3 });
+});
+
+test('parseBackup rejects a tampered backup', () => {
+  const log = buildLog();
+  log[0].payload.serial = 'TAMPERED';
+  const text = JSON.stringify(I.makeBackup(log, '2026-07-27T00:00:00Z'));
+  const res = I.parseBackup(text);
+  assert.equal(res.ok, false);
+  assert.match(res.error, /integrity check/i);
+});
+
+test('parseBackup rejects non-backup and malformed JSON', () => {
+  assert.equal(I.parseBackup('not json').ok, false);
+  assert.equal(I.parseBackup(JSON.stringify({ app: 'something-else', log: [] })).ok, false);
+  assert.equal(I.parseBackup(JSON.stringify({ app: 'bound-book' })).ok, false);
+});
+
+test('parseBackup accepts an empty but valid backup', () => {
+  const text = JSON.stringify(I.makeBackup([], '2026-07-27T00:00:00Z'));
+  const res = I.parseBackup(text);
+  assert.equal(res.ok, true);
+  assert.equal(res.log.length, 0);
+});
+
 test('project applies corrections from the log', () => {
   let log = buildLog();
   log = I.appendEvent(log, 'correct', {

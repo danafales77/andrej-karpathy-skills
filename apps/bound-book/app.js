@@ -294,6 +294,45 @@
       rows + '</tbody></table>';
   }
 
+  // --- backup / restore (continuity of the legal record) ---
+  document.getElementById('btn-backup').addEventListener('click', function () {
+    var backup = INT.makeBackup(log, nowIso());
+    var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'bound-book-backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  var restoreInput = document.getElementById('restore-input');
+  restoreInput.addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    var msg = document.getElementById('restore-msg');
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var res = INT.parseBackup(String(reader.result));
+      if (!res.ok) {
+        msg.innerHTML = '<div class="chain-bad">' + esc(res.error) + '</div>';
+        restoreInput.value = '';
+        return;
+      }
+      if (log.length && !window.confirm('Restore ' + res.log.length + ' entries from this backup? This replaces the current record on this device.')) {
+        restoreInput.value = '';
+        return;
+      }
+      log = res.log;
+      saveLog();
+      entries = INT.project(log);
+      restoreInput.value = '';
+      msg.innerHTML = '<div class="chain-ok">Restored ' + res.log.length + ' entries. Chain verified.</div>';
+      renderIntegrity();
+    };
+    reader.readAsText(file);
+  });
+
   // --- profile ---
   (function initProfile() {
     var form = document.getElementById('profile-form');

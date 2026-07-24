@@ -77,31 +77,37 @@ The app **is** the legal bound book; no paper.
 - **Cons:** ATF imposes specific conditions on electronic A&D systems (typically prior approval/variance, guaranteed no data gaps, tamper-evidence, reliable reproduction on demand, defined backup/continuity). Materially more to build, test, and stand behind legally. Overkill for the budget persona.
 
 ### Recommendation
-**Ship Option A.** Position the product as a *companion ledger that prints an ATF-ready bound book*. Design the data model so that **upgrading to Option B later is a positioning + compliance-hardening step, not a rewrite** — i.e., build the integrity features (append-only, audit trail, corrections-by-lining-out) now, and treat "electronic system of record" as a future paid tier once the variance/legal work is done.
+Originally: **ship Option A** and design so upgrading to Option B is a
+positioning + hardening step, not a rewrite. That path was followed — the
+integrity features were built on the append-only model from the start.
 
-### Option B — technical spine (implemented; legal step still outstanding)
+**Update:** the ATF variance is now **approved**, so the product operates as
+**Option B — an electronic system of record** (see the section below). The
+Option A analysis is retained for history and because the print/PDF/CSV output
+it describes still serves as the human-readable surrender copy.
 
-The prototype now ships the **technical** requirements for Option B via an
-append-only, **hash-chained event log** (`integrity.js`):
+### Option B — in effect (variance approved)
 
-- Every action (acquire, dispose, correct) is an immutable event; the ledger is
-  a *projection* of the log, never edited in place.
-- Each event stores a SHA-256 hash over its contents plus the previous event's
-  hash, so any after-the-fact edit, deletion, or reorder **breaks the chain and
-  is detected** (tamper-evidence).
-- Sequential numbering with no gaps is verified on demand (the **Integrity**
-  screen), giving the "no data gaps" property.
+The ATF variance is **approved**, so the app now operates as the **electronic
+system of record**. The requirements are met as follows:
 
-What code **cannot** provide, and remains a human/legal step before going
-paperless:
+- **Tamper-evidence** — an append-only, **hash-chained event log**
+  (`integrity.js`): every action (acquire, dispose, correct) is an immutable
+  event; the ledger is a *projection* of the log, never edited in place. Each
+  event hashes its contents plus the previous event's hash, so any after-the-fact
+  edit, deletion, or reorder breaks the chain and is detected.
+- **No data gaps** — sequential numbering verified on demand (the **Integrity**
+  screen).
+- **Reproduction on demand** — Print / Save-as-PDF and CSV export produce the
+  human-readable / surrender copy.
+- **Backup & continuity** — full-fidelity JSON backup of the entire chained log,
+  with **verify-on-restore**: a tampered or corrupt backup fails the integrity
+  check and is refused rather than loaded. Because the build is local-first, the
+  user's backup is the continuity + surrender copy; regular backup is now a
+  compliance step, surfaced in the first-run notice and on the Integrity screen.
 
-- **ATF approval (variance)** to use the electronic system as the *sole* record.
-- **Backup/continuity** guarantees appropriate to the deployment (the budget,
-  local-first build still relies on the user's own machine + CSV/PDF exports).
-
-Until the variance is in hand, the app keeps its Option A posture: print/export
-the ledger as the official record. The integrity layer is what makes the future
-switch a positioning + paperwork step rather than a rebuild.
+Print/PDF/CSV remain available as the human-readable surrender copies, but they
+are no longer the *system of record* — the chained log is.
 
 This gives budget users what they need today and preserves your upgrade path.
 

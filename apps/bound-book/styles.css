@@ -116,6 +116,12 @@ fieldset.span2 {
 }
 fieldset legend { color: var(--ink); font-weight: 600; padding: 0 0.4rem; }
 
+/* Narrow screens: forms stack to a single column so nothing overflows. */
+@media (max-width: 640px) {
+  .grid { grid-template-columns: 1fr; }
+  fieldset.span2 { grid-template-columns: 1fr; }
+}
+
 button[type="submit"], .actions button, #disclaimer-ok {
   background: var(--accent);
   color: #fff;

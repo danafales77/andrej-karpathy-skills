@@ -79,6 +79,30 @@ The app **is** the legal bound book; no paper.
 ### Recommendation
 **Ship Option A.** Position the product as a *companion ledger that prints an ATF-ready bound book*. Design the data model so that **upgrading to Option B later is a positioning + compliance-hardening step, not a rewrite** — i.e., build the integrity features (append-only, audit trail, corrections-by-lining-out) now, and treat "electronic system of record" as a future paid tier once the variance/legal work is done.
 
+### Option B — technical spine (implemented; legal step still outstanding)
+
+The prototype now ships the **technical** requirements for Option B via an
+append-only, **hash-chained event log** (`integrity.js`):
+
+- Every action (acquire, dispose, correct) is an immutable event; the ledger is
+  a *projection* of the log, never edited in place.
+- Each event stores a SHA-256 hash over its contents plus the previous event's
+  hash, so any after-the-fact edit, deletion, or reorder **breaks the chain and
+  is detected** (tamper-evidence).
+- Sequential numbering with no gaps is verified on demand (the **Integrity**
+  screen), giving the "no data gaps" property.
+
+What code **cannot** provide, and remains a human/legal step before going
+paperless:
+
+- **ATF approval (variance)** to use the electronic system as the *sole* record.
+- **Backup/continuity** guarantees appropriate to the deployment (the budget,
+  local-first build still relies on the user's own machine + CSV/PDF exports).
+
+Until the variance is in hand, the app keeps its Option A posture: print/export
+the ledger as the official record. The integrity layer is what makes the future
+switch a positioning + paperwork step rather than a rebuild.
+
 This gives budget users what they need today and preserves your upgrade path.
 
 ## 5. Scope — Screens (target: ~4)

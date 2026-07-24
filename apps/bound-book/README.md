@@ -25,6 +25,10 @@ browser's local storage — nothing is sent anywhere.
   don't erase" convention).
 - **Export / Print** — print or **Save as PDF** for your official record, and
   download a **CSV** as your backup.
+- **Integrity** — every action is stored in an append-only, **hash-chained**
+  event log; the screen verifies the chain (no gaps, nothing altered) and shows
+  the full audit trail. Editing or deleting anything after the fact breaks the
+  chain and is flagged.
 
 ## The record model (important)
 
@@ -35,6 +39,15 @@ it and print it; you store the output. Export a CSV regularly as backup.
 There is no edit-in-place or delete: the only way to change a recorded value is
 a logged correction, so the record stays tamper-evident by construction.
 
+### Toward a paperless (electronic) record
+
+The app already implements the *technical* properties an electronic system of
+record needs — a hash-chained, append-only log with no-gaps + tamper
+verification (see the **Integrity** screen and `integrity.js`). What it does
+**not** do is make the app your *sole legal* record: that requires **ATF
+approval (a variance)** plus a backup/continuity story. Until then, keep the
+Option A posture — the printed/exported ledger is the record of truth.
+
 > Not legal advice. Requirements summarized from 27 CFR Part 478. Confirm
 > current ATF rules and any state requirements for your situation before
 > relying on this.
@@ -44,7 +57,8 @@ a logged correction, so the record stays tamper-evident by construction.
 | File | Role |
 |------|------|
 | `core.js` | Pure logic: validation, entry model, append-only corrections, CSV. Storage-agnostic; runs in browser and Node. |
-| `core.test.js` | Node tests for `core.js`. Run: `node --test` |
+| `integrity.js` | Hash-chained, append-only event log: SHA-256, chain verification (no-gaps + tamper), projection to ledger entries. |
+| `core.test.js` / `integrity.test.js` | Node tests. Run: `node --test` |
 | `index.html` / `app.js` / `styles.css` | UI, localStorage persistence, print stylesheet. |
 
 ## Test

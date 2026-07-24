@@ -113,6 +113,12 @@ th { background: #efefec; }
 .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; padding: 0; }
 #correct-cancel { background: none; color: var(--muted); border: 1px solid var(--line); }
 
+.chain-ok { background: #e7f3ec; color: var(--accent); border: 1px solid #bfe0cc; padding: 0.7rem 0.9rem; border-radius: 6px; font-weight: 600; }
+.chain-bad { background: #fbe9ec; color: var(--err); border: 1px solid #f0c2ca; padding: 0.7rem 0.9rem; border-radius: 6px; font-weight: 600; }
+#integrity-log { margin-top: 1rem; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
+tr.row-bad td { background: #fbe9ec; }
+
 .modal {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.45);

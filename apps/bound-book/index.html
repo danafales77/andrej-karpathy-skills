@@ -28,6 +28,7 @@
       <button data-view="dispose">Dispose</button>
       <button data-view="ledger">Ledger</button>
       <button data-view="export">Export / Print</button>
+      <button data-view="integrity">Integrity</button>
       <button data-view="profile">Licensee</button>
     </nav>
   </header>
@@ -98,6 +99,17 @@
       <div id="print-ledger"></div>
     </section>
 
+    <!-- INTEGRITY -->
+    <section id="view-integrity" class="view hidden">
+      <h1>Record integrity</h1>
+      <p class="hint">Every action is an entry in an append-only, hash-linked log.
+        Editing or removing anything after the fact breaks the chain and is flagged here.</p>
+      <div id="integrity-status"></div>
+      <p class="hint" style="margin-top:1rem">Using this log as your <em>sole legal</em> record
+        (paperless) requires ATF approval (a variance). Until then, keep printing/exporting your ledger.</p>
+      <div id="integrity-log"></div>
+    </section>
+
     <!-- PROFILE -->
     <section id="view-profile" class="view hidden">
       <h1>Licensee details</h1>
@@ -133,6 +145,7 @@
   </div>
 
   <script src="core.js"></script>
+  <script src="integrity.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

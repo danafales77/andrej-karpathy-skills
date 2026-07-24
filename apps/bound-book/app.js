@@ -2,23 +2,32 @@
 (function () {
   'use strict';
   var BB = window.BoundBook;
-  var STORE_KEY = 'boundbook.entries.v1';
+  var INT = window.Integrity;
+  var LOG_KEY = 'boundbook.log.v1';
   var PROFILE_KEY = 'boundbook.profile.v1';
   var DISCLAIMER_KEY = 'boundbook.disclaimer.v1';
 
-  // --- persistence ---
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+  // --- persistence (append-only event log; the ledger is a projection) ---
+  function loadLog() {
+    try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; }
     catch (e) { return []; }
   }
-  function save(entries) { localStorage.setItem(STORE_KEY, JSON.stringify(entries)); }
+  function saveLog() { localStorage.setItem(LOG_KEY, JSON.stringify(log)); }
   function loadProfile() {
     try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; }
     catch (e) { return {}; }
   }
   function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
 
-  var entries = load();
+  var log = loadLog();
+  var entries = INT.project(log);
+
+  // Record an action as a new chained event, persist, and re-project the ledger.
+  function commit(type, payload) {
+    log = INT.appendEvent(log, type, payload, nowIso());
+    saveLog();
+    entries = INT.project(log);
+  }
 
   function newId() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -51,6 +60,7 @@
     if (view === 'dispose') renderDisposeOptions();
     if (view === 'ledger') renderLedger();
     if (view === 'export') renderPrintLedger();
+    if (view === 'integrity') renderIntegrity();
   }
   document.querySelectorAll('nav button').forEach(function (b) {
     b.addEventListener('click', function () { show(b.dataset.view); });
@@ -63,8 +73,8 @@
     var res = BB.validateAcquisition(data);
     showErrors(document.getElementById('acquire-errors'), res.errors);
     if (!res.ok) return;
-    entries.push(BB.newEntry(data, newId(), nowIso()));
-    save(entries);
+    data.entryId = newId();
+    commit('acquire', data);
     this.reset();
     showErrors(document.getElementById('acquire-errors'), []);
     show('ledger');
@@ -97,9 +107,8 @@
     var res = BB.validateDisposition(data);
     showErrors(errEl, res.errors);
     if (!res.ok) return;
-    var idx = entries.findIndex(function (e) { return e.id === id; });
-    entries[idx] = BB.applyDisposition(entries[idx], data);
-    save(entries);
+    data.entryId = id;
+    commit('dispose', data);
     this.reset();
     show('ledger');
   });
@@ -207,9 +216,7 @@
       showErrors(document.getElementById('correct-errors'), ['Corrected value and reason are both required.']);
       return;
     }
-    var idx = entries.findIndex(function (e) { return e.id === correctingId; });
-    entries[idx] = BB.addCorrection(entries[idx], data.field, data.newValue, data.reason, nowIso());
-    save(entries);
+    commit('correct', { entryId: correctingId, field: data.field, newValue: data.newValue, reason: data.reason });
     document.getElementById('correct-modal').classList.add('hidden');
     renderLedger();
   });
@@ -253,6 +260,39 @@
     a.click();
     URL.revokeObjectURL(url);
   });
+
+  // --- integrity view ---
+  function eventSummary(e) {
+    if (e.type === 'acquire') return 'Acquired ' + esc(e.payload.mfrImporter) + ' ' + esc(e.payload.model) + ' — SN ' + esc(e.payload.serial);
+    if (e.type === 'dispose') return 'Disposed entry (4473 ' + esc(e.payload.formSerial) + ')';
+    if (e.type === 'correct') return 'Corrected ' + esc(e.payload.field) + ' → ' + esc(e.payload.newValue) + ' (' + esc(e.payload.reason) + ')';
+    return esc(e.type);
+  }
+  function renderIntegrity() {
+    var res = INT.verifyChain(log);
+    var statusEl = document.getElementById('integrity-status');
+    if (!log.length) {
+      statusEl.innerHTML = '<div class="chain-ok">No entries yet — nothing to verify.</div>';
+      document.getElementById('integrity-log').innerHTML = '';
+      return;
+    }
+    statusEl.innerHTML = res.ok
+      ? '<div class="chain-ok">&#10003; Chain verified — ' + res.count + ' entr' + (res.count === 1 ? 'y' : 'ies') + ', no gaps, nothing altered.</div>'
+      : '<div class="chain-bad">&#10007; Integrity check FAILED. ' + esc(res.reason) + '</div>';
+
+    var rows = log.map(function (e) {
+      var broken = !res.ok && e.seq >= res.brokenAt;
+      return '<tr class="' + (broken ? 'row-bad' : '') + '">' +
+        '<td>' + e.seq + '</td>' +
+        '<td>' + esc((e.timestamp || '').replace('T', ' ').replace(/\..*/, '')) + '</td>' +
+        '<td>' + eventSummary(e) + '</td>' +
+        '<td class="mono">' + esc(String(e.hash).slice(0, 12)) + '…</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('integrity-log').innerHTML =
+      '<table><thead><tr><th>#</th><th>When</th><th>Action</th><th>Hash</th></tr></thead><tbody>' +
+      rows + '</tbody></table>';
+  }
 
   // --- profile ---
   (function initProfile() {

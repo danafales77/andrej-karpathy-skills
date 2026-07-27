@@ -59,13 +59,23 @@
     return { ok: errors.length === 0, errors: errors };
   }
 
+  // Copy any state-specific custom fields (keys prefixed `custom_`) from an
+  // input object onto a target. This keeps core generic — it stores whatever
+  // custom fields the licensee has defined without knowing what they are.
+  function copyCustom(src, dest) {
+    Object.keys(src).forEach(function (k) {
+      if (k.indexOf('custom_') === 0) dest[k] = src[k];
+    });
+    return dest;
+  }
+
   // Build a new open entry. Caller supplies id and createdAt (ISO string).
   function newEntry(acq, id, createdAt) {
     return {
       id: id,
       createdAt: createdAt,
       status: 'open',
-      acquisition: {
+      acquisition: copyCustom(acq, {
         dateReceived: acq.dateReceived,
         mfrImporter: acq.mfrImporter,
         model: acq.model,
@@ -75,7 +85,7 @@
         sourceName: acq.sourceName || '',
         sourceAddress: acq.sourceAddress || '',
         sourceFfl: acq.sourceFfl || ''
-      },
+      }),
       disposition: null,
       corrections: []
     };
@@ -84,14 +94,14 @@
   // Record a disposition against an open entry. Returns a new entry object.
   function applyDisposition(entry, disp) {
     var next = clone(entry);
-    next.disposition = {
+    next.disposition = copyCustom(disp, {
       date: disp.date,
       buyerName: disp.buyerName || '',
       buyerAddress: disp.buyerAddress || '',
       buyerFfl: disp.buyerFfl || '',
       formSerial: disp.formSerial,
       eligibilityNote: disp.eligibilityNote
-    };
+    });
     next.status = 'disposed';
     return next;
   }
@@ -171,10 +181,17 @@
     return ffl ? 'FFL# ' + ffl : '';
   }
 
-  function toCSV(entries) {
-    var lines = [CSV_COLUMNS.map(function (c) { return csvEscape(c.header); }).join(',')];
+  // `extraColumns` (optional) appends state-specific custom columns:
+  // [{ header, path }], where path is a dotted entry path (e.g.
+  // 'acquisition.custom_x'). Values resolve through corrections like any field.
+  function toCSV(entries, extraColumns) {
+    var extra = (extraColumns || []).map(function (c) {
+      return { header: c.header, get: function (e) { return cv(e, c.path); } };
+    });
+    var cols = CSV_COLUMNS.concat(extra);
+    var lines = [cols.map(function (c) { return csvEscape(c.header); }).join(',')];
     entries.forEach(function (e) {
-      lines.push(CSV_COLUMNS.map(function (c) { return csvEscape(c.get(e)); }).join(','));
+      lines.push(cols.map(function (c) { return csvEscape(c.get(e)); }).join(','));
     });
     return lines.join('\r\n');
   }

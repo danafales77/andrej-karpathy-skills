@@ -93,6 +93,46 @@ test('toCSV emits header plus one row per entry with a party rendered', () => {
   assert.ok(lines[2].includes('Jane, 2 Oak'));
 });
 
+test('newEntry preserves custom_ fields on acquisition', () => {
+  const acq = Object.assign({}, goodAcq, { custom_dros: 'D-12345', custom_purchaserId: 'DL-999' });
+  const e = BB.newEntry(acq, 'id1', '2026-07-24T00:00:00Z');
+  assert.equal(e.acquisition.custom_dros, 'D-12345');
+  assert.equal(e.acquisition.custom_purchaserId, 'DL-999');
+  assert.equal(BB.currentValue(e, 'acquisition.custom_dros'), 'D-12345');
+});
+
+test('applyDisposition preserves custom_ fields on disposition', () => {
+  const e = BB.newEntry(goodAcq, 'id1', '2026-07-24T00:00:00Z');
+  const d = BB.applyDisposition(e, {
+    date: '2026-07-25', buyerName: 'Jane', buyerAddress: '2 Oak',
+    formSerial: 'F900', eligibilityNote: 'box 3', custom_waitCleared: '2026-07-30'
+  });
+  assert.equal(d.disposition.custom_waitCleared, '2026-07-30');
+  assert.equal(BB.currentValue(d, 'disposition.custom_waitCleared'), '2026-07-30');
+});
+
+test('custom fields are correctable via dotted path', () => {
+  const e = BB.newEntry(Object.assign({}, goodAcq, { custom_dros: 'D-1' }), 'id1', '2026-07-24T00:00:00Z');
+  const c = BB.addCorrection(e, 'acquisition.custom_dros', 'D-2', 'fix', '2026-07-24T01:00:00Z');
+  assert.equal(BB.currentValue(c, 'acquisition.custom_dros'), 'D-2');
+  assert.equal(c.acquisition.custom_dros, 'D-1', 'original value retained');
+});
+
+test('toCSV appends extra custom columns', () => {
+  const e = BB.newEntry(Object.assign({}, goodAcq, { custom_dros: 'D-12345' }), 'id1', '2026-07-24T00:00:00Z');
+  const csv = BB.toCSV([e], [{ header: 'DROS #', path: 'acquisition.custom_dros' }]);
+  const lines = csv.split('\r\n');
+  assert.ok(lines[0].endsWith(',DROS #'));
+  assert.ok(lines[1].endsWith(',D-12345'));
+});
+
+test('toCSV with no extra columns is unchanged', () => {
+  const e = BB.newEntry(goodAcq, 'id1', '2026-07-24T00:00:00Z');
+  const a = BB.toCSV([e]);
+  const b = BB.toCSV([e], []);
+  assert.equal(a, b);
+});
+
 test('party renders FFL form when no name/address', () => {
   const acq = Object.assign({}, goodAcq, { sourceName: '', sourceAddress: '', sourceFfl: '1-23-45' });
   const e = BB.newEntry(acq, 'id1', '2026-07-24T00:00:00Z');

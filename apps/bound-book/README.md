@@ -29,6 +29,23 @@ browser's local storage — nothing is sent anywhere.
   event log; the screen verifies the chain (no gaps, nothing altered) and shows
   the full audit trail. Editing or deleting anything after the fact breaks the
   chain and is flagged. Also holds **full backup / restore** (verify-on-restore).
+- **State fields** — define your own state-specific fields (e.g. DROS number,
+  purchaser ID, waiting-period-cleared date). See below.
+
+## State-specific fields
+
+Some states require extra details on transactions beyond the federal minimum.
+Rather than ship built-in (and quickly-stale) assumptions about every state,
+the app lets you **define your own fields** under **State fields**:
+
+- Give the field a **label**, choose whether it appears on the **acquisition**
+  or **disposition** side, and mark it **required** if it must be filled.
+- The field then shows on the matching form, is **validated** if required,
+  appears as a **column** in the ledger, print/PDF, and CSV, is part of the
+  **hash-chained record**, and is **correctable** like any other field.
+
+Set these to match your state's rules. Removing a field stops new entries from
+collecting it; values already recorded remain in the immutable log and backups.
 
 ## The record model (important)
 

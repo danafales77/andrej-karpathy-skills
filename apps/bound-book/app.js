@@ -7,6 +7,7 @@
   var PROFILE_KEY = 'boundbook.profile.v1';
   var DISCLAIMER_KEY = 'boundbook.disclaimer.v1';
   var BACKUP_KEY = 'boundbook.lastbackup.v1';
+  var FIELDS_KEY = 'boundbook.customfields.v1';
 
   // --- persistence (append-only event log; the ledger is a projection) ---
   function loadLog() {
@@ -24,6 +25,24 @@
     catch (e) { return {}; }
   }
   function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
+  function loadCustomFields() {
+    try { return JSON.parse(localStorage.getItem(FIELDS_KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function saveCustomFields(fields) { localStorage.setItem(FIELDS_KEY, JSON.stringify(fields)); }
+
+  // State-specific custom fields, defined by the licensee. Each: { id, label,
+  // side: 'acquisition'|'disposition', required }. The payload/entry key is
+  // 'custom_' + id, so values flow through core.js and the hash-chained log.
+  var customFields = loadCustomFields();
+  function fieldsFor(side) {
+    return customFields.filter(function (f) { return f.side === side; });
+  }
+  function customColumns(side) {
+    return fieldsFor(side).map(function (f) {
+      return { header: f.label, path: side + '.custom_' + f.id };
+    });
+  }
 
   var log = loadLog();
   var entries = INT.project(log);
@@ -57,6 +76,20 @@
       : '';
   }
 
+  // Render the licensee's custom fields for a side into a form container.
+  function renderCustomInputs(side, container) {
+    container.innerHTML = fieldsFor(side).map(function (f) {
+      return '<label>' + esc(f.label) + (f.required ? ' *' : '') +
+        '<input name="custom_' + esc(f.id) + '" /></label>';
+    }).join('');
+  }
+  // Errors for any required custom field left blank on this side.
+  function customFieldErrors(side, data) {
+    return fieldsFor(side).filter(function (f) {
+      return f.required && !String(data['custom_' + f.id] || '').trim();
+    }).map(function (f) { return f.label + ' is required.'; });
+  }
+
   // --- navigation ---
   function show(view) {
     document.querySelectorAll('.view').forEach(function (s) { s.classList.add('hidden'); });
@@ -64,10 +97,12 @@
     document.querySelectorAll('nav button').forEach(function (b) {
       b.classList.toggle('active', b.dataset.view === view);
     });
-    if (view === 'dispose') renderDisposeOptions();
+    if (view === 'acquire') renderCustomInputs('acquisition', document.getElementById('acquire-custom'));
+    if (view === 'dispose') { renderDisposeOptions(); renderCustomInputs('disposition', document.getElementById('dispose-custom')); }
     if (view === 'ledger') renderLedger();
     if (view === 'export') renderPrintLedger();
     if (view === 'integrity') renderIntegrity();
+    if (view === 'statefields') renderStateFields();
   }
   document.querySelectorAll('nav button').forEach(function (b) {
     b.addEventListener('click', function () { show(b.dataset.view); });
@@ -78,8 +113,9 @@
     ev.preventDefault();
     var data = formData(this);
     var res = BB.validateAcquisition(data);
-    showErrors(document.getElementById('acquire-errors'), res.errors);
-    if (!res.ok) return;
+    var errs = res.errors.concat(customFieldErrors('acquisition', data));
+    showErrors(document.getElementById('acquire-errors'), errs);
+    if (errs.length) return;
     data.entryId = newId();
     commit('acquire', data);
     this.reset();
@@ -112,8 +148,9 @@
     if (!id) { showErrors(errEl, ['Select an open firearm first.']); return; }
     var data = formData(this);
     var res = BB.validateDisposition(data);
-    showErrors(errEl, res.errors);
-    if (!res.ok) return;
+    var errs = res.errors.concat(customFieldErrors('disposition', data));
+    showErrors(errEl, errs);
+    if (errs.length) return;
     data.entryId = id;
     commit('dispose', data);
     this.reset();
@@ -161,8 +198,10 @@
       el.innerHTML = '<p class="empty">No entries yet. Start with an acquisition.</p>';
       return;
     }
+    var extraCols = customColumns('acquisition').concat(customColumns('disposition'));
     var head = '<tr>' + LEDGER_COLS.map(function (c) { return '<th>' + c[0] + '</th>'; }).join('') +
-      '<th>Source</th><th>Status</th><th>Disposition</th></tr>';
+      '<th>Source</th><th>Status</th><th>Disposition</th>' +
+      extraCols.map(function (c) { return '<th>' + esc(c.header) + '</th>'; }).join('') + '</tr>';
     var body = rows.map(function (e) {
       var cells = LEDGER_COLS.map(function (c) { return '<td>' + fieldCell(e, c[1]) + '</td>'; }).join('');
       var source = '<td>' + esc(BB.party(e, 'source')) + '</td>';
@@ -176,8 +215,9 @@
         disp += '—';
       }
       disp += '</td>';
+      var extra = extraCols.map(function (c) { return '<td>' + fieldCell(e, c.path) + '</td>'; }).join('');
       var action = '<td class="no-print"><button type="button" class="link-btn" data-correct="' + esc(e.id) + '">Correct</button></td>';
-      return '<tr>' + cells + source + status + disp + action + '</tr>';
+      return '<tr>' + cells + source + status + disp + extra + action + '</tr>';
     }).join('');
     el.innerHTML = '<table><thead>' + head + '<th class="no-print"></th></thead><tbody>' + body + '</tbody></table>';
     el.querySelectorAll('[data-correct]').forEach(function (b) {
@@ -192,9 +232,15 @@
     var fields = BB.ACQ_FIELDS.map(function (f) {
       return { path: 'acquisition.' + f.key, label: f.label };
     });
+    fieldsFor('acquisition').forEach(function (f) {
+      fields.push({ path: 'acquisition.custom_' + f.id, label: f.label });
+    });
     if (entry.disposition) {
       BB.DISP_FIELDS.forEach(function (f) {
         fields.push({ path: 'disposition.' + f.key, label: 'Disposition — ' + f.label });
+      });
+      fieldsFor('disposition').forEach(function (f) {
+        fields.push({ path: 'disposition.custom_' + f.id, label: 'Disposition — ' + f.label });
       });
     }
     return fields;
@@ -237,8 +283,10 @@
       (p.address ? ' · ' + esc(p.address) : '') + '</div></div>';
     var el = document.getElementById('print-ledger');
     if (!entries.length) { el.innerHTML = header + '<p class="empty">No entries yet.</p>'; return; }
+    var extraCols = customColumns('acquisition').concat(customColumns('disposition'));
     var head = '<tr><th>Received</th><th>Mfr/Importer</th><th>Model</th><th>Serial</th>' +
-      '<th>Type</th><th>Caliber</th><th>Source</th><th>Disp. date</th><th>Buyer</th><th>4473</th></tr>';
+      '<th>Type</th><th>Caliber</th><th>Source</th><th>Disp. date</th><th>Buyer</th><th>4473</th>' +
+      extraCols.map(function (c) { return '<th>' + esc(c.header) + '</th>'; }).join('') + '</tr>';
     var body = entries.map(function (e) {
       return '<tr>' +
         td(BB.currentValue(e, 'acquisition.dateReceived')) +
@@ -251,6 +299,7 @@
         td(e.disposition ? BB.currentValue(e, 'disposition.date') : '') +
         td(e.disposition ? BB.party(e, 'buyer') : '') +
         td(e.disposition ? BB.currentValue(e, 'disposition.formSerial') : '') +
+        extraCols.map(function (c) { return td(BB.currentValue(e, c.path)); }).join('') +
         '</tr>';
     }).join('');
     el.innerHTML = header + '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
@@ -259,7 +308,8 @@
 
   document.getElementById('btn-print').addEventListener('click', function () { window.print(); });
   document.getElementById('btn-csv').addEventListener('click', function () {
-    var blob = new Blob([BB.toCSV(entries)], { type: 'text/csv' });
+    var extraCols = customColumns('acquisition').concat(customColumns('disposition'));
+    var blob = new Blob([BB.toCSV(entries, extraCols)], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -369,6 +419,50 @@
       renderIntegrity();
     };
     reader.readAsText(file);
+  });
+
+  // --- state / custom fields management ---
+  function renderStateFields() {
+    var el = document.getElementById('statefields-list');
+    if (!customFields.length) {
+      el.innerHTML = '<p class="empty">No custom fields yet. Add any your state requires below.</p>';
+      return;
+    }
+    var rows = customFields.map(function (f) {
+      var side = f.side === 'disposition' ? 'Disposition' : 'Acquisition';
+      return '<tr><td>' + esc(f.label) + '</td><td>' + side + '</td>' +
+        '<td>' + (f.required ? 'Required' : 'Optional') + '</td>' +
+        '<td class="no-print"><button type="button" class="link-btn" data-remove-field="' + esc(f.id) + '">Remove</button></td></tr>';
+    }).join('');
+    el.innerHTML = '<table><thead><tr><th>Label</th><th>Appears on</th><th>Required</th><th></th></tr></thead><tbody>' +
+      rows + '</tbody></table>';
+    el.querySelectorAll('[data-remove-field]').forEach(function (b) {
+      b.addEventListener('click', function () { removeField(b.dataset.removeField); });
+    });
+  }
+  function removeField(id) {
+    if (!window.confirm('Remove this field? New entries will no longer collect it. Values already recorded stay in the immutable log and in backups.')) return;
+    customFields = customFields.filter(function (f) { return f.id !== id; });
+    saveCustomFields(customFields);
+    renderStateFields();
+  }
+  document.getElementById('statefield-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var data = formData(this);
+    if (!data.label) {
+      showErrors(document.getElementById('statefield-errors'), ['A field label is required.']);
+      return;
+    }
+    customFields = customFields.concat([{
+      id: newId().replace(/-/g, '').slice(0, 8),
+      label: data.label,
+      side: data.side === 'acquisition' ? 'acquisition' : 'disposition',
+      required: !!data.required
+    }]);
+    saveCustomFields(customFields);
+    this.reset();
+    showErrors(document.getElementById('statefield-errors'), []);
+    renderStateFields();
   });
 
   // --- profile ---

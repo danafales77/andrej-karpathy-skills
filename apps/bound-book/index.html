@@ -31,6 +31,7 @@
       <button data-view="ledger">Ledger</button>
       <button data-view="export">Export / Print</button>
       <button data-view="integrity">Integrity</button>
+      <button data-view="statefields">State fields</button>
       <button data-view="profile">Licensee</button>
     </nav>
   </header>
@@ -54,6 +55,7 @@
           <label>Address<input name="sourceAddress" /></label>
           <label>or FFL #<input name="sourceFfl" placeholder="if from a licensee" /></label>
         </fieldset>
+        <div class="span2" id="acquire-custom"></div>
         <div class="errors span2" id="acquire-errors"></div>
         <button type="submit" class="span2">Add acquisition</button>
       </form>
@@ -78,6 +80,7 @@
         <label class="span2">Eligibility documentation
           <input name="eligibilityNote" placeholder="e.g. 4473 + NICS proceed on file, binder A" required />
         </label>
+        <div class="span2" id="dispose-custom"></div>
         <div class="errors span2" id="dispose-errors"></div>
         <button type="submit" class="span2">Record disposition</button>
       </form>
@@ -117,6 +120,28 @@
       </div>
       <div id="restore-msg"></div>
       <div id="integrity-log"></div>
+    </section>
+
+    <!-- STATE / CUSTOM FIELDS -->
+    <section id="view-statefields" class="view hidden">
+      <h1>State &amp; custom fields</h1>
+      <p class="hint">Some states require extra details on transactions (e.g. a DROS number,
+        a purchaser ID, a waiting-period-cleared date). Define them here and they appear on
+        the matching form, flow into the record and exports, and can be corrected like any field.
+        Set them to match your state's rules — this app ships no built-in state assumptions.</p>
+      <div id="statefields-list"></div>
+      <form id="statefield-form" class="grid">
+        <label class="span2">Field label<input name="label" placeholder="e.g. DROS number" required /></label>
+        <label>Appears on
+          <select name="side">
+            <option value="disposition">Disposition (sale / transfer out)</option>
+            <option value="acquisition">Acquisition (received)</option>
+          </select>
+        </label>
+        <label class="check2"><input name="required" type="checkbox" /> Required</label>
+        <div class="errors span2" id="statefield-errors"></div>
+        <button type="submit" class="span2">Add field</button>
+      </form>
     </section>
 
     <!-- PROFILE -->

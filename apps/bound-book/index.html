@@ -125,13 +125,15 @@
     <!-- STATE / CUSTOM FIELDS -->
     <section id="view-statefields" class="view hidden">
       <h1>State &amp; custom fields</h1>
-      <p class="hint">Some states require extra details on transactions (e.g. a DROS number,
-        a purchaser ID, a waiting-period-cleared date). Define them here and they appear on
-        the matching form, flow into the record and exports, and can be corrected like any field.
-        Set them to match your state's rules — this app ships no built-in state assumptions.</p>
+      <p class="hint">Fields marked <em>from your state</em> are configured automatically when you
+        pick your <strong>State</strong> under <em>Licensee</em>. You can also add your own extra
+        fields below. All of them appear on the matching form, flow into the record and exports,
+        and can be corrected like any field. State presets are a starting point — confirm against
+        your state's current rules.</p>
       <div id="statefields-list"></div>
+      <h2 style="font-size:1.1rem;margin:1.2rem 0 0.4rem">Add your own field</h2>
       <form id="statefield-form" class="grid">
-        <label class="span2">Field label<input name="label" placeholder="e.g. DROS number" required /></label>
+        <label class="span2">Field label<input name="label" placeholder="e.g. Purchaser ID" required /></label>
         <label>Appears on
           <select name="side">
             <option value="disposition">Disposition (sale / transfer out)</option>
@@ -152,6 +154,10 @@
         <label>Licensee / Business name<input name="name" /></label>
         <label>FFL number<input name="ffl" /></label>
         <label class="span2">Premises address<input name="address" /></label>
+        <label class="span2">State
+          <select name="state" id="profile-state"></select>
+        </label>
+        <p class="hint span2" style="margin:0 0 0.4rem">Selecting your state auto-configures any state-specific fields it requires. Presets are a starting point — confirm them against your state's current rules and edit under <em>State fields</em> as needed.</p>
         <fieldset class="span2">
           <legend>Backup policy</legend>
           <label>Remind me to back up every (days)
@@ -187,6 +193,7 @@
 
   <script src="core.js"></script>
   <script src="integrity.js"></script>
+  <script src="state-presets.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

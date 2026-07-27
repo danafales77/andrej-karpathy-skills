@@ -430,11 +430,17 @@
     }
     var rows = customFields.map(function (f) {
       var side = f.side === 'disposition' ? 'Disposition' : 'Acquisition';
+      var origin = f.source === 'state' ? 'from your state' : 'you added';
+      // State-sourced fields are managed by the State selector, not removed here.
+      var action = f.source === 'state'
+        ? ''
+        : '<button type="button" class="link-btn" data-remove-field="' + esc(f.id) + '">Remove</button>';
       return '<tr><td>' + esc(f.label) + '</td><td>' + side + '</td>' +
         '<td>' + (f.required ? 'Required' : 'Optional') + '</td>' +
-        '<td class="no-print"><button type="button" class="link-btn" data-remove-field="' + esc(f.id) + '">Remove</button></td></tr>';
+        '<td>' + origin + '</td>' +
+        '<td class="no-print">' + action + '</td></tr>';
     }).join('');
-    el.innerHTML = '<table><thead><tr><th>Label</th><th>Appears on</th><th>Required</th><th></th></tr></thead><tbody>' +
+    el.innerHTML = '<table><thead><tr><th>Label</th><th>Appears on</th><th>Required</th><th>Source</th><th></th></tr></thead><tbody>' +
       rows + '</tbody></table>';
     el.querySelectorAll('[data-remove-field]').forEach(function (b) {
       b.addEventListener('click', function () { removeField(b.dataset.removeField); });
@@ -457,7 +463,8 @@
       id: newId().replace(/-/g, '').slice(0, 8),
       label: data.label,
       side: data.side === 'acquisition' ? 'acquisition' : 'disposition',
-      required: !!data.required
+      required: !!data.required,
+      source: 'manual'
     }]);
     saveCustomFields(customFields);
     this.reset();
@@ -465,16 +472,35 @@
     renderStateFields();
   });
 
+  // Apply a state's preset fields, preserving manually-added ones.
+  function applyState(code) {
+    customFields = window.StatePresets.applyState(customFields, code);
+    saveCustomFields(customFields);
+  }
+
   // --- profile ---
   (function initProfile() {
     var form = document.getElementById('profile-form');
     var p = loadProfile();
-    ['name', 'ffl', 'address', 'backupIntervalDays'].forEach(function (k) { if (form[k]) form[k].value = p[k] || ''; });
+    // Populate the state dropdown from presets.
+    var stateSel = document.getElementById('profile-state');
+    stateSel.innerHTML = '<option value="">— Select your state —</option>' +
+      window.StatePresets.STATES.map(function (s) {
+        return '<option value="' + s.code + '">' + esc(s.name) + '</option>';
+      }).join('');
+    ['name', 'ffl', 'address', 'backupIntervalDays', 'state'].forEach(function (k) { if (form[k]) form[k].value = p[k] || ''; });
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      saveProfile(formData(this));
-      document.getElementById('profile-saved').textContent = 'Saved.';
-      setTimeout(function () { document.getElementById('profile-saved').textContent = ''; }, 1500);
+      var data = formData(this);
+      var prevState = loadProfile().state || '';
+      saveProfile(data);
+      // If the state changed, reconcile the auto-configured fields.
+      if ((data.state || '') !== prevState) {
+        applyState(data.state || '');
+      }
+      document.getElementById('profile-saved').textContent =
+        (data.state && (data.state !== prevState)) ? 'Saved. State fields updated.' : 'Saved.';
+      setTimeout(function () { document.getElementById('profile-saved').textContent = ''; }, 2500);
     });
   })();
 

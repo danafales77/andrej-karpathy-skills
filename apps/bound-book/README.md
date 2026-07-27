@@ -35,17 +35,25 @@ browser's local storage — nothing is sent anywhere.
 ## State-specific fields
 
 Some states require extra details on transactions beyond the federal minimum.
-Rather than ship built-in (and quickly-stale) assumptions about every state,
-the app lets you **define your own fields** under **State fields**:
 
-- Give the field a **label**, choose whether it appears on the **acquisition**
-  or **disposition** side, and mark it **required** if it must be filled.
-- The field then shows on the matching form, is **validated** if required,
-  appears as a **column** in the ledger, print/PDF, and CSV, is part of the
-  **hash-chained record**, and is **correctable** like any other field.
+**The simple way — pick your state.** In **Licensee → State**, choose your
+state and the app auto-configures the extra fields it requires. Those fields are
+marked *from your state* on the **State fields** screen and are managed by the
+selector (change your state and they update).
 
-Set these to match your state's rules. Removing a field stops new entries from
-collecting it; values already recorded remain in the immutable log and backups.
+**Add your own.** You can also define extra fields under **State fields** — a
+**label**, the **acquisition** or **disposition** side, and whether it's
+**required**.
+
+Either way, each field shows on the matching form, is **validated** if required,
+appears as a **column** in the ledger, print/PDF, and CSV, is part of the
+**hash-chained record**, and is **correctable** like any other field.
+
+> **State presets are starter templates, not legal advice, and are not
+> exhaustive.** Only well-established examples are seeded (e.g. California's DROS
+> number); other states start on the federal baseline. Confirm your state's
+> current requirements and edit as needed. Values already recorded stay in the
+> immutable log and backups even if a field is later removed.
 
 ## The record model (important)
 

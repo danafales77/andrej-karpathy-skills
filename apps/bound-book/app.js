@@ -57,17 +57,54 @@
       : '';
   }
 
+  // --- toast (confirm an action in place, without navigating away) ---
+  function toast(msg, actionLabel, actionFn) {
+    var region = document.getElementById('toast-region');
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.setAttribute('role', 'status');
+    var span = document.createElement('span');
+    span.className = 'toast-msg';
+    span.textContent = msg;
+    t.appendChild(span);
+    var timer;
+    function dismiss() {
+      clearTimeout(timer);
+      t.classList.remove('show');
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 220);
+    }
+    if (actionLabel) {
+      var a = document.createElement('button');
+      a.className = 'toast-action';
+      a.textContent = actionLabel;
+      a.addEventListener('click', function () { dismiss(); actionFn(); });
+      t.appendChild(a);
+    }
+    region.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('show'); });
+    timer = setTimeout(dismiss, 4500);
+  }
+
   // --- navigation ---
   function show(view) {
     document.querySelectorAll('.view').forEach(function (s) { s.classList.add('hidden'); });
-    document.getElementById('view-' + view).classList.remove('hidden');
+    var section = document.getElementById('view-' + view);
+    section.classList.remove('hidden');
     document.querySelectorAll('nav button').forEach(function (b) {
-      b.classList.toggle('active', b.dataset.view === view);
+      var on = b.dataset.view === view;
+      b.classList.toggle('active', on);
+      if (on) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
     });
     if (view === 'dispose') renderDisposeOptions();
     if (view === 'ledger') renderLedger();
     if (view === 'export') renderPrintLedger();
     if (view === 'integrity') renderIntegrity();
+    // Move focus to the view heading (announces the change to screen readers)
+    // and reset scroll so each view starts at the top.
+    var h = section.querySelector('h1');
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus(); }
+    window.scrollTo(0, 0);
   }
   document.querySelectorAll('nav button').forEach(function (b) {
     b.addEventListener('click', function () { show(b.dataset.view); });
@@ -81,10 +118,11 @@
     showErrors(document.getElementById('acquire-errors'), res.errors);
     if (!res.ok) return;
     data.entryId = newId();
+    var serial = data.serial;
     commit('acquire', data);
     this.reset();
     showErrors(document.getElementById('acquire-errors'), []);
-    show('ledger');
+    toast('✓ Acquisition logged — SN ' + serial, 'View in ledger', function () { show('ledger'); });
   });
 
   // --- dispose ---
@@ -117,7 +155,9 @@
     data.entryId = id;
     commit('dispose', data);
     this.reset();
-    show('ledger');
+    renderDisposeOptions();
+    showErrors(errEl, []);
+    toast('✓ Disposition recorded', 'View in ledger', function () { show('ledger'); });
   });
 
   // --- ledger ---
@@ -226,6 +266,7 @@
     commit('correct', { entryId: correctingId, field: data.field, newValue: data.newValue, reason: data.reason });
     document.getElementById('correct-modal').classList.add('hidden');
     renderLedger();
+    toast('✓ Correction logged — original kept on record');
   });
 
   // --- export ---

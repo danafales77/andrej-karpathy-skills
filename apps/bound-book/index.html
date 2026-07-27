@@ -23,17 +23,45 @@
     </div>
   </div>
 
-  <header class="topbar no-print">
+  <div class="app-shell">
+  <aside class="sidebar no-print">
     <div class="brand">Bound Book <span class="tag">budget</span></div>
-    <nav>
-      <button data-view="acquire" class="active">Acquire</button>
-      <button data-view="dispose">Dispose</button>
-      <button data-view="ledger">Ledger</button>
-      <button data-view="export">Export / Print</button>
-      <button data-view="integrity">Integrity</button>
-      <button data-view="profile">Licensee</button>
+    <nav aria-label="Primary">
+      <div class="nav-group">
+        <p class="nav-group-title">Record</p>
+        <button data-view="acquire" class="active">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M8.5 8.5 12 12l3.5-3.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span>Acquire</span>
+        </button>
+        <button data-view="dispose">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span>Dispose</span>
+        </button>
+      </div>
+      <div class="nav-group">
+        <p class="nav-group-title">Review</p>
+        <button data-view="ledger">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.5M4 12h.5M4 18h.5"/></svg>
+          <span>Ledger</span>
+        </button>
+        <button data-view="integrity">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span>Integrity</span>
+        </button>
+      </div>
+      <div class="nav-group nav-group--end">
+        <p class="nav-group-title">System</p>
+        <button data-view="export">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8V3h10v5"/><path d="M7 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6H7z"/></svg>
+          <span>Export / Print</span>
+        </button>
+        <button data-view="profile">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+          <span>Licensee</span>
+        </button>
+      </div>
     </nav>
-  </header>
+  </aside>
 
   <main>
     <!-- ACQUIRE -->
@@ -139,6 +167,10 @@
       </form>
     </section>
   </main>
+  </div>
+
+  <!-- Toast notifications (action confirmations) -->
+  <div id="toast-region" class="toast-region no-print" aria-live="polite" aria-atomic="false"></div>
 
   <!-- Correction modal (append-only; original values are never erased) -->
   <div id="correct-modal" class="modal hidden">

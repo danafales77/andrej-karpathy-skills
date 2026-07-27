@@ -45,10 +45,22 @@
     { code: 'WY', name: 'Wyoming' }
   ];
 
-  // state code -> extra fields. Seeded conservatively; expand per verified rules.
+  // state code -> extra fields. Seeded conservatively from public state
+  // requirements; expand per verified rules. Still confirm against your state's
+  // current law and your ATF/state guidance — this is not legal advice.
   var PRESETS = {
     CA: [
       { label: 'DROS number', side: 'disposition', required: true }
+    ],
+    // Florida is a full point-of-contact state: all dealer sales (handgun and
+    // long gun) run through FDLE, which issues an approval number the dealer
+    // records and attaches to the 4473. Delivery is held for the 3-day waiting
+    // period (excl. weekends/holidays) or until the check clears — whichever is
+    // later — with exemptions (e.g. CWFL holders, trade-ins).
+    FL: [
+      { label: 'FDLE approval number', side: 'disposition', required: true },
+      { label: 'Delivery date (waiting period cleared)', side: 'disposition', required: false },
+      { label: 'Waiting-period exemption', side: 'disposition', required: false }
     ]
   };
 

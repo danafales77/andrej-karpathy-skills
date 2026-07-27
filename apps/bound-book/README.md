@@ -49,11 +49,21 @@ Either way, each field shows on the matching form, is **validated** if required,
 appears as a **column** in the ledger, print/PDF, and CSV, is part of the
 **hash-chained record**, and is **correctable** like any other field.
 
+### Seeded states
+
+- **Florida** — full point-of-contact state: dealer sales run through FDLE.
+  Configures **FDLE approval number** (required), **Delivery date (waiting
+  period cleared)**, and **Waiting-period exemption** on the disposition side.
+- **California** — configures the **DROS number** (required) on disposition.
+
+Other states start on the federal baseline until accurate data is added.
+
 > **State presets are starter templates, not legal advice, and are not
-> exhaustive.** Only well-established examples are seeded (e.g. California's DROS
-> number); other states start on the federal baseline. Confirm your state's
-> current requirements and edit as needed. Values already recorded stay in the
-> immutable log and backups even if a field is later removed.
+> exhaustive.** They reflect public state requirements at the time they were
+> added; rules change and litigation shifts them. Confirm your state's current
+> requirements (and your ATF/state guidance) and edit as needed. Values already
+> recorded stay in the immutable log and backups even if a field is later
+> removed.
 
 ## The record model (important)
 

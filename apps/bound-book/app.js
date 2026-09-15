@@ -7,6 +7,7 @@
   var PK = window.Packages;
   var INV = window.Inventory;
   var SB = window.SecureBackup;
+  var CUST = window.Customers;
   var LOG_KEY = 'boundbook.log.v1';
   var PROFILE_KEY = 'boundbook.profile.v1';
   var DISCLAIMER_KEY = 'boundbook.disclaimer.v1';
@@ -132,6 +133,8 @@
     });
     if (view === 'dispose') renderDisposeOptions();
     if (view === 'inventory') renderInventory();
+    if (view === 'customers') renderCustomers();
+    if (view === 'acquire') renderKnownParties('acquire');
     if (view === 'packages') renderPackages();
     if (view === 'ledger') renderLedger();
     if (view === 'export') renderPrintLedger();
@@ -261,6 +264,7 @@
         }).join('')
       : '<option value="">No open firearms</option>';
 
+    renderKnownParties('dispose');
     var types = document.getElementById('dispose-type');
     if (!types.options.length) {
       types.innerHTML = BB.DISP_TYPES.map(function (t) {
@@ -472,7 +476,12 @@
         '</strong> between ' + esc(g.firstDate) + ' and ' + esc(g.lastDate) + ' (' +
         esc(g.entries.map(function (e) { return BB.currentValue(e, 'acquisition.serial'); }).join(', ')) +
         '). Multiple handgun sales to one non-licensee inside a short window require a ' +
-        'separate report to ATF — check whether this one does.'));
+        'separate report to ATF — check whether this one does.' +
+        (g.spellingsMerged
+          ? ' <em>These were written under different spellings — ' +
+            esc(g.spellings.join(' / ')) + ' — so the record does not obviously show them ' +
+            'as one buyer.</em>'
+          : '')));
     });
 
     if (a.lateEntries.length) {
@@ -697,6 +706,211 @@
           '</tr>';
       }).join('') + '</tbody></table>';
   }
+
+  // --- customers --------------------------------------------------------------
+  // A projection of the record, recomputed on demand. Nothing is stored here,
+  // so there is no customer list to fall out of step with the bound book.
+
+  function customerList() { return CUST.customers(entries); }
+
+  var openCustomerKey = null;
+
+  function renderCustomers() {
+    var list = customerList();
+    var people = list.filter(function (c) { return c.kind === 'person'; });
+    var licensees = list.filter(function (c) { return c.kind === 'licensee'; });
+    var repeat = list.filter(function (c) { return c.transactions.length > 1; });
+
+    document.getElementById('customers-summary').innerHTML = [
+      tile(list.length, 'customers'),
+      tile(people.length, 'individual' + plural(people.length)),
+      tile(licensees.length, 'licensee' + plural(licensees.length)),
+      tile(repeat.length, 'dealt with twice or more')
+    ].join('');
+
+    renderDuplicateReview(list);
+    renderCustomersTable(list);
+    renderCustomerDetail(list);
+  }
+
+  function renderDuplicateReview(list) {
+    var dupes = CUST.duplicateCandidates(list);
+    var el = document.getElementById('customers-dupes');
+    if (!dupes.length) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = alertLine('backup-warn', '&#9888; ' + dupes.length + ' pair' + plural(dupes.length) +
+      ' that might be the same customer. These are <strong>not</strong> merged automatically — ' +
+      'the record says what it says, and only a logged correction changes it.') +
+      '<table><thead><tr><th>One</th><th>The other</th><th>Why it is ambiguous</th>' +
+      '<th class="no-print"></th></tr></thead><tbody>' +
+      dupes.map(function (d, i) {
+        return '<tr>' +
+          '<td>' + esc(d.a.displayName) + '<span class="pkg-note">' + esc(d.a.displayAddress) + '</span></td>' +
+          '<td>' + esc(d.b.displayName) + '<span class="pkg-note">' + esc(d.b.displayAddress) + '</span></td>' +
+          '<td>' + esc(d.reason) + '</td>' +
+          '<td class="no-print"><button type="button" class="link-btn" data-standardize="' + i + '">Standardize&hellip;</button></td>' +
+          '</tr>';
+      }).join('') + '</tbody></table>';
+
+    el.querySelectorAll('[data-standardize]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        standardizeCustomer(dupes[parseInt(b.dataset.standardize, 10)]);
+      });
+    });
+  }
+
+  // Standardizing does not rewrite anything. It proposes the corrections that
+  // would bring one customer's entries onto a single spelling, and writes them
+  // through the ordinary append-only correction path — so the old spelling stays
+  // on the record, struck through, with a reason, exactly like any other fix.
+  function standardizeCustomer(pair) {
+    var choice = window.prompt(
+      'Standardize both of these onto one spelling.\n\n' +
+      '1 = ' + pair.a.displayName + ', ' + pair.a.displayAddress + '\n' +
+      '2 = ' + pair.b.displayName + ', ' + pair.b.displayAddress + '\n\n' +
+      'This does not erase anything: each change is recorded as a correction, ' +
+      'with the original kept and struck through.\n\n' +
+      'Type 1 or 2, or cancel:', '1');
+    if (choice !== '1' && choice !== '2') return;
+    var keep = choice === '1' ? pair.a : pair.b;
+    var fix = choice === '1' ? pair.b : pair.a;
+
+    var corrections = CUST.standardizeCorrections(fix, keep.displayName, keep.displayAddress);
+    if (!corrections.length) {
+      window.alert('Nothing to change — those entries already read that way.');
+      return;
+    }
+    if (!window.confirm('Record ' + corrections.length + ' correction' + plural(corrections.length) +
+      ' so those entries read "' + keep.displayName + ', ' + keep.displayAddress + '"?')) return;
+
+    var reason = 'Standardized customer spelling';
+    for (var i = 0; i < corrections.length; i++) {
+      var c = corrections[i];
+      if (!commit('correct', {
+        entryId: c.entryId, field: c.field, newValue: c.newValue, reason: reason
+      })) return;
+    }
+    renderCustomers();
+  }
+
+  function renderCustomersTable(list) {
+    var rows = CUST.search(list, document.getElementById('customers-search').value.trim());
+    var el = document.getElementById('customers-table');
+    if (!rows.length) {
+      el.innerHTML = '<p class="empty">' + (list.length ? 'Nobody matches that.'
+        : 'No customers yet — they appear as soon as you log an entry.') + '</p>';
+      return;
+    }
+    el.innerHTML = '<table><thead><tr><th>Who</th><th>Kind</th><th>Acquired from</th>' +
+      '<th>Sold to</th><th>Handguns</th><th>Last dealt</th><th class="no-print"></th></tr></thead><tbody>' +
+      rows.map(function (c) {
+        return '<tr>' +
+          '<td>' + esc(c.displayName) +
+            '<span class="pkg-note">' + esc(c.displayAddress || (c.ffl ? 'FFL# ' + c.ffl : '')) + '</span>' +
+            (c.spellings > 1 ? '<span class="pkg-note">' + c.spellings +
+              ' spellings on the record</span>' : '') + '</td>' +
+          '<td>' + (c.kind === 'licensee' ? 'Licensee' : 'Individual') + '</td>' +
+          '<td>' + c.acquiredCount + '</td>' +
+          '<td>' + c.disposedCount + '</td>' +
+          '<td>' + (c.handgunsBought || '—') + '</td>' +
+          '<td>' + esc(c.lastDealt || '—') + '</td>' +
+          '<td class="no-print"><button type="button" class="link-btn" data-customer="' +
+            esc(c.key) + '">History</button></td>' +
+          '</tr>';
+      }).join('') + '</tbody></table>';
+
+    el.querySelectorAll('[data-customer]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        openCustomerKey = openCustomerKey === b.dataset.customer ? null : b.dataset.customer;
+        renderCustomerDetail(customerList());
+      });
+    });
+  }
+
+  function renderCustomerDetail(list) {
+    var el = document.getElementById('customer-detail');
+    var c = openCustomerKey ? CUST.find(list, openCustomerKey) : null;
+    if (!c) { el.innerHTML = ''; return; }
+
+    var spellings = '';
+    if (c.spellings > 1) {
+      spellings = '<p class="hint">Recorded under ' + c.names.length + ' name spelling' +
+        plural(c.names.length) + ' and ' + c.addresses.length + ' address spelling' +
+        plural(c.addresses.length) + ': ' +
+        esc(c.names.concat(c.addresses).join(' · ')) + '</p>';
+    }
+
+    el.innerHTML = '<div class="customer-card"><h3>' + esc(c.displayName) + '</h3>' +
+      '<p class="hint">' + esc(c.displayAddress) + (c.ffl ? ' · FFL# ' + esc(c.ffl) : '') +
+      ' · first dealt ' + esc(c.firstDealt || '—') + '</p>' +
+      spellings +
+      '<table><thead><tr><th>Date</th><th>Direction</th><th>Firearm</th><th>Serial</th>' +
+      '<th>Type</th></tr></thead><tbody>' +
+      c.transactions.map(function (t) {
+        return '<tr><td>' + esc(t.date || '—') + '</td>' +
+          '<td>' + (t.direction === 'acquired' ? 'Acquired from them' : 'Transferred to them') + '</td>' +
+          '<td>' + esc(t.firearm) + '</td>' +
+          '<td>' + esc(t.serial) + '</td>' +
+          '<td>' + esc(t.type) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div class="actions no-print"><button type="button" class="secondary" id="btn-close-customer">Close</button></div></div>';
+
+    document.getElementById('btn-close-customer').addEventListener('click', function () {
+      openCustomerKey = null;
+      renderCustomerDetail(list);
+    });
+  }
+
+  document.getElementById('customers-search').addEventListener('input', function () {
+    renderCustomersTable(customerList());
+  });
+
+  // --- autofill ---------------------------------------------------------------
+  // The real fix for the alarm that spelling variation used to defeat: stop the
+  // second spelling being created at all.
+
+  function renderKnownParties(which) {
+    var sel = document.getElementById(which + '-known');
+    if (!sel) return;
+    var list = customerList();
+    sel.innerHTML = '<option value="">Type it fresh below</option>' +
+      list.map(function (c) {
+        var label = c.displayName + (c.displayAddress ? ' — ' + c.displayAddress : '') +
+          (c.ffl ? ' (FFL# ' + c.ffl + ')' : '');
+        return '<option value="' + esc(c.key) + '">' + esc(label) + '</option>';
+      }).join('');
+    sel.value = '';
+  }
+
+  function wireAutofill(which, nameField, addressField, fflField) {
+    var sel = document.getElementById(which + '-known');
+    if (!sel) return;
+    sel.addEventListener('change', function () {
+      var note = document.getElementById(which + '-known-note');
+      if (!sel.value) {
+        if (note) { note.innerHTML = ''; note.classList.add('hidden'); }
+        return;
+      }
+      var c = CUST.find(customerList(), sel.value);
+      if (!c) return;
+      var form = document.getElementById(which + '-form');
+      form[nameField].value = c.displayName;
+      form[addressField].value = c.displayAddress;
+      form[fflField].value = c.ffl || '';
+      if (note) {
+        var hg = c.handgunsBought;
+        note.innerHTML = 'Dealt with ' + c.transactions.length + ' time' + plural(c.transactions.length) +
+          ' before, most recently ' + esc(c.lastDealt || 'an unknown date') + '.' +
+          (hg ? ' <strong>' + hg + ' handgun' + plural(hg) + '</strong> already transferred to them.' : '');
+        note.classList.remove('hidden');
+      }
+    });
+  }
+
+  wireAutofill('acquire', 'sourceName', 'sourceAddress', 'sourceFfl');
+  wireAutofill('dispose', 'buyerName', 'buyerAddress', 'buyerFfl');
 
   // --- export ----------------------------------------------------------------
 

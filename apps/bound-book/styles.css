@@ -277,3 +277,19 @@ fieldset.range label { margin-right: 1rem; }
   .corr { display: block; font-size: 9px; }
   .tiles, #count-panel, .anchor { break-inside: avoid; }
 }
+
+/* --- Customers (a reading of the record, not a list beside it) --- */
+#customers-search { width: 100%; padding: 0.5rem; margin-bottom: 0.8rem; border: 1px solid var(--line); border-radius: 6px; }
+#customers-dupes:not(:empty) { margin-bottom: 1rem; }
+#customers-dupes table { margin-top: 0.5rem; }
+.customer-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+.customer-card h3 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.customer-card table { margin-top: 0.6rem; }
+#acquire-known, #dispose-known { width: 100%; padding: 0.4rem; }
+#dispose-known-note { margin: 0.5rem 0 0; }

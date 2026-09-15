@@ -33,6 +33,7 @@
       <button data-view="acquire" class="active">Acquire</button>
       <button data-view="dispose">Dispose</button>
       <button data-view="inventory">Inventory</button>
+      <button data-view="customers">Customers</button>
       <button data-view="packages">Packages</button>
       <button data-view="ledger">Ledger</button>
       <button data-view="export">Export / Print</button>
@@ -57,6 +58,9 @@
         <label>Caliber / Gauge<input name="caliber" list="caliber-options" required /></label>
         <fieldset class="span2">
           <legend>Source</legend>
+          <label class="span2 no-print">Fill from someone you have dealt with before
+            <select id="acquire-known"></select>
+          </label>
           <label>Name<input name="sourceName" /></label>
           <label>Address<input name="sourceAddress" /></label>
           <label>or FFL #<input name="sourceFfl" placeholder="if from a licensee" /></label>
@@ -99,6 +103,10 @@
       <form id="dispose-form" class="grid">
         <fieldset class="span2" id="dispose-party">
           <legend>Buyer / Transferee</legend>
+          <label class="span2 no-print">Fill from someone you have dealt with before
+            <select id="dispose-known"></select>
+          </label>
+          <div id="dispose-known-note" class="pkg-banner hidden"></div>
           <label>Name<input name="buyerName" /></label>
           <label>Address<input name="buyerAddress" /></label>
           <label>or FFL #<input name="buyerFfl" /></label>
@@ -130,6 +138,22 @@
 
       <h2 class="no-print">Past counts</h2>
       <div id="count-history" class="no-print"></div>
+    </section>
+
+    <!-- CUSTOMERS -->
+    <section id="view-customers" class="view hidden">
+      <h1>Customers</h1>
+      <p class="hint">Everyone on the other side of an entry — the people you sold to and
+        the people and licensees you acquired from. This is a reading of the record, not a
+        list beside it: there is nothing here to edit, and nothing that can drift out of
+        step with the bound book.</p>
+
+      <div id="customers-summary" class="tiles"></div>
+      <div id="customers-dupes"></div>
+
+      <input id="customers-search" class="no-print" placeholder="Search name, address, FFL, serial…" />
+      <div id="customers-table"></div>
+      <div id="customer-detail"></div>
     </section>
 
     <!-- PACKAGES -->
@@ -334,6 +358,8 @@
   <script src="core.js"></script>
   <script src="integrity.js"></script>
   <script src="packages.js"></script>
+  <!-- customers.js before inventory.js: the handgun alarm keys on customer identity -->
+  <script src="customers.js"></script>
   <script src="inventory.js"></script>
   <script src="securebackup.js"></script>
   <script src="app.js"></script>

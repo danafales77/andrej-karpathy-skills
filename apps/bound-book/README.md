@@ -23,6 +23,8 @@ browser's local storage — nothing is sent anywhere.
   needs (see below).
 - **Inventory** — what you still have on hand, how long you have held it, the
   alarms the record raises about itself, and **physical inventory counts**.
+- **Customers** — everyone on the other side of an entry, recognised across the
+  spelling variations that used to split one person into several.
 - **Ledger** — searchable, chronological view of every entry.
 - **Correct** — append-only corrections: the original value is never erased,
   it's shown struck-through with the reason and the new value (the "line-out,
@@ -157,6 +159,76 @@ tamper-evident attestation of what was physically present, discrepancies and
 all. It cannot be edited afterwards. Counts do not appear in the A&D projection
 — they are about the record, not about any one firearm's line in it.
 
+## Customers
+
+Every entry has always named someone: a source you acquired from, a buyer you
+transferred to. What the record never had was the idea that two entries might
+mean the *same* person — each one just stored another string. So a repeat buyer
+was invisible, and the multiple-handgun alarm, which groups sales by buyer, only
+fired when the licensee happened to type the name and address identically both
+times. `9 Elm St` and `9 Elm Street` were two different people and the alarm
+stayed silent. **An alarm that depends on perfect typing is worse than no alarm,
+because it reads as an all-clear.**
+
+The **Customers** screen is a *projection* of the chained log — everyone you
+have dealt with, in both directions, with every firearm that passed between you.
+There is no customer table: nothing to edit, nothing to drift out of step with
+the bound book, and no way to change a customer except by correcting the entries
+that name them.
+
+### Identity that survives typing
+
+| Treated as the same customer | Treated as different |
+|---|---|
+| `9 Elm St` / `9 Elm Street` / `9 Elm St.` | `9 Elm St` / `11 Elm St` |
+| `9 Elm St #2` / `9 Elm St Apt 2` | `9 Elm St Apt 2` / `9 Elm St Apt 5` |
+| `Jane Buyer` / `Jane A Buyer` | `Jane A Buyer` / `Jane B Buyer` |
+| `Buyer, Jane` / `Jane Buyer` | `Jane Buyer` / `John Buyer` |
+| `9 Elm St` / `9 Elm St, Springfield IL 62704` | same street, **different town** |
+
+An FFL number identifies a licensee outright and wins over any spelling. For
+everyone else, identity is a normalized name plus a normalized *doorway* (house
+number, street, unit), with the town used only to rule a match **out** — a
+missing town is "not stated", not "differs".
+
+A different doorway is deliberately a different customer, because two people
+genuinely can share a name. That is conservative on purpose in one direction and
+generous in the other: for a compliance alarm, a false positive costs a glance,
+and a miss costs a report that was owed and never filed.
+
+This is spelling normalization, **not** postal address validation. It does not
+know whether an address is real.
+
+### Autofill is the actual fix
+
+Picking a known customer on the acquire or dispose form fills their details in
+and tells you what you have already transferred to them. Matching repairs the
+damage after the fact; autofill stops the second spelling existing at all.
+
+### Duplicates are reviewed, never merged
+
+Where two customers might be one — the same name at a different address, or one
+address under names that do not match — the screen says so and shows why. It
+does not merge them. **Standardize** proposes the changes and writes them as
+ordinary **corrections**, so the original spelling stays on the record, struck
+through, with a reason, exactly like any other fix. Nothing about a customer is
+ever quietly rewritten.
+
+### What this deliberately does not collect
+
+The bound book needs a name and address, or an FFL number. That is what this
+stores. It does **not** add dates of birth, ID numbers, phone numbers or email
+addresses, and it should not: those live on the 4473, where they belong, and
+collecting them here would create a second, less protected copy of the most
+sensitive data in the business without any compliance benefit.
+
+For the same reason there is **no "do not transfer" flag**. Recording an adverse
+judgment about a named individual inside a compliance record is a decision with
+real consequences for that person, and it is the licensee's to make, not a
+feature to switch on by default. Eligibility is determined by a background check
+at the time of transfer — never by a note in this app. Tell me if you want it and
+we can design it properly.
+
 ## Alarms the record raises about itself
 
 The data was always there; nothing surfaced it. All thresholds live in
@@ -164,9 +236,11 @@ The data was always there; nothing surfaced it. All thresholds live in
 
 - **Multiple handguns to one buyer.** Two or more handguns sold to the same
   non-licensee inside a short window triggers a separate report to ATF. The app
-  detects the pattern and names the serials. Frames and receivers are
-  deliberately **not** counted — whether a given frame counts is a legal
-  question this app does not answer.
+  detects the pattern and names the serials. Buyer identity comes from the
+  customer module, so the alarm survives ordinary typing variation, and it says
+  so out loud when it pulled together entries written under different spellings.
+  Frames and receivers are deliberately **not** counted — whether a given frame
+  counts is a legal question this app does not answer.
 - **Entries that reached the book late.** The gap between when something
   happened and when it was written down. Retrospective by nature — the app
   cannot know about a transfer nobody entered — but it is exactly the pattern an
@@ -259,6 +333,7 @@ list, not ATF's official manufacturer/importer abbreviation list.**
 |------|------|
 | `core.js` | Pure logic: validation, entry model, disposition types, append-only corrections, field vocabularies, CSV. Storage-agnostic; runs in browser and Node. |
 | `integrity.js` | Hash-chained, append-only event log: SHA-256, chain verification (no-gaps + tamper), chain comparison for safe restore, head hash, projection to ledger entries. |
+| `customers.js` | Pure logic for customer identity: name and address normalization, clustering, the customer projection, duplicate review. Depended on by `inventory.js`, so it loads first. |
 | `inventory.js` | Pure logic for on-hand inventory, aging, physical inventory counts, and the record's self-raised alarms. |
 | `packages.js` | Pure logic for the inbound package registry: carrier detection, status normalization, staleness, reconciliation against the ledger. Outside the chain by design. |
 | `securebackup.js` | Passphrase-encrypted backups (AES-256-GCM + PBKDF2 via WebCrypto), verify-on-decrypt. |

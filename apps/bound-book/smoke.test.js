@@ -276,6 +276,102 @@ test('the app boots and every screen works in a real browser', {
   }
   step('multiple-handgun sale to one buyer raised an alarm');
 
+  // --- customers: the same buyer under a different spelling ----------------
+  // The regression this module exists for, end to end in the browser.
+  await page.click('nav button[data-view=acquire]');
+  await page.fill('[name=dateReceived]', '2026-09-01');
+  await page.fill('[name=mfrImporter]', 'Acme Arms');
+  await page.fill('[name=model]', 'P9');
+  await page.fill('[name=serial]', 'HG-3');
+  await page.fill('[name=type]', 'Pistol');
+  await page.fill('[name=caliber]', '9mm');
+  await page.fill('[name=sourceName]', 'Distributor LLC');
+  await page.fill('[name=sourceAddress]', '1 Main St');
+  await page.click('#acquire-form button[type=submit]');
+  await page.waitForTimeout(150);
+
+  await page.click('nav button[data-view=dispose]');
+  const hg3 = (await page.locator('#dispose-select option').allTextContents())
+    .findIndex((o) => o.includes('HG-3'));
+  await page.selectOption('#dispose-select', { index: hg3 });
+  await page.selectOption('#dispose-type', 'sale_4473');
+  await page.waitForTimeout(100);
+  await page.fill('#disp-date', '2026-09-11');
+  await page.fill('[name=buyerName]', 'Jane A Buyer');      // middle initial added
+  await page.fill('[name=buyerAddress]', '9 Elm Street');    // "St" spelled out
+  await page.fill('#disp-formSerial', 'F-HG3');
+  await page.fill('#disp-eligibilityNote', '4473 + NICS proceed');
+  await page.click('#dispose-form button[type=submit]');
+  await page.waitForTimeout(200);
+
+  await page.click('nav button[data-view=inventory]');
+  await page.waitForTimeout(200);
+  const merged = await page.locator('#inventory-alarms').innerText();
+  if (!/3 handguns to Jane/.test(merged)) {
+    problems.push('alarm did not merge the differently-spelled buyer: ' + merged);
+  }
+  if (!/different spellings/.test(merged)) {
+    problems.push('alarm did not say the spellings differed: ' + merged);
+  }
+  step('a buyer spelled three ways is caught as one person by the alarm');
+
+  // --- customers screen -----------------------------------------------------
+  await page.click('nav button[data-view=customers]');
+  await page.waitForTimeout(200);
+  const custTiles = await page.locator('#customers-summary .tile-value').allInnerTexts();
+  if (!custTiles.length) problems.push('customers summary did not render');
+  const custText = await page.locator('#customers-table').innerText();
+  if (!/Jane/.test(custText)) problems.push('Jane is not in the customer list: ' + custText);
+  if (!/Distributor LLC/.test(custText)) problems.push('the distributor is not a customer');
+  if (!/spellings on the record/.test(custText)) {
+    problems.push('the customer list does not flag the multiple spellings');
+  }
+  step('customers screen lists both directions and flags multiple spellings');
+
+  // Jane must be ONE row, not three.
+  const janeRows = await page.locator('#customers-table tbody tr', { hasText: 'Jane' }).count();
+  if (janeRows !== 1) problems.push('Jane appears as ' + janeRows + ' customers, expected 1');
+  step('three spellings collapse to a single customer row');
+
+  await page.locator('[data-customer]').first().click();
+  await page.waitForTimeout(150);
+  const detail = await page.locator('#customer-detail').innerText();
+  if (!/Transferred to them|Acquired from them/.test(detail)) {
+    problems.push('customer history did not render: ' + detail);
+  }
+  step('customer history opens with per-firearm transactions');
+
+  await page.fill('#customers-search', 'nobody-by-this-name');
+  await page.waitForTimeout(150);
+  if (!/matches that/.test(await page.locator('#customers-table').innerText())) {
+    problems.push('customer search did not filter');
+  }
+  await page.fill('#customers-search', '');
+  await page.waitForTimeout(150);
+  step('customer search filters and clears');
+
+  // --- autofill -------------------------------------------------------------
+  await page.click('nav button[data-view=dispose]');
+  await page.waitForTimeout(200);
+  const knownOptions = await page.locator('#dispose-known option').allTextContents();
+  const janeOption = knownOptions.findIndex((o) => o.includes('Jane'));
+  if (janeOption < 1) {
+    problems.push('known-customer picker has no Jane: ' + JSON.stringify(knownOptions));
+  } else {
+    await page.selectOption('#dispose-known', { index: janeOption });
+    await page.waitForTimeout(150);
+    const filledName = await page.inputValue('[name=buyerName]');
+    const filledAddr = await page.inputValue('[name=buyerAddress]');
+    if (!/Jane/.test(filledName) || !/Elm/.test(filledAddr)) {
+      problems.push('autofill did not populate: ' + filledName + ' / ' + filledAddr);
+    }
+    const note = await page.locator('#dispose-known-note').innerText();
+    if (!/handgun/.test(note)) {
+      problems.push('autofill did not warn about prior handgun transfers: ' + note);
+    }
+  }
+  step('autofill fills a known customer and surfaces their handgun history');
+
   // --- plain backup round-trip through restore -----------------------------
   await page.click('nav button[data-view=integrity]');
   await page.waitForTimeout(150);
@@ -328,5 +424,5 @@ test('the app boots and every screen works in a real browser', {
   await browser.close();
 
   assert.deepEqual(problems, [], 'browser smoke test found problems');
-  assert.ok(steps.length >= 16, 'expected every flow to be exercised, got ' + steps.length);
+  assert.ok(steps.length >= 22, 'expected every flow to be exercised, got ' + steps.length);
 });

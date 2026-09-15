@@ -18,11 +18,13 @@
 // because the rule it approximates has conditions this app does not model.
 
 (function (root, factory) {
-  var core = (typeof module === 'object' && module.exports) ? require('./core.js') : root.BoundBook;
-  var mod = factory(core);
-  if (typeof module === 'object' && module.exports) module.exports = mod;
+  var isNode = typeof module === 'object' && module.exports;
+  var core = isNode ? require('./core.js') : root.BoundBook;
+  var cust = isNode ? require('./customers.js') : root.Customers;
+  var mod = factory(core, cust);
+  if (isNode) module.exports = mod;
   else root.Inventory = mod;
-})(typeof self !== 'undefined' ? self : this, function (BB) {
+})(typeof self !== 'undefined' ? self : this, function (BB, CUST) {
   'use strict';
 
   var DAY_MS = 86400000;
@@ -252,12 +254,14 @@
 
   // --- alarms ----------------------------------------------------------------
 
+  // Buyer identity comes from customers.js. It used to be an exact-ish match on
+  // the name and address strings, which meant the alarm below only fired when
+  // the licensee typed both identically each time — "9 Elm St" and "9 Elm
+  // Street" were two different people and the alarm stayed silent. An alarm that
+  // depends on perfect typing is worse than no alarm, because it reads as an
+  // all-clear.
   function buyerKey(e) {
-    var ffl = cv(e, 'disposition.buyerFfl').trim();
-    if (ffl) return 'ffl:' + ffl.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    var name = cv(e, 'disposition.buyerName').trim().toLowerCase().replace(/\s+/g, ' ');
-    var addr = cv(e, 'disposition.buyerAddress').trim().toLowerCase().replace(/\s+/g, ' ');
-    return name || addr ? 'person:' + name + '|' + addr : '';
+    return CUST.identityKey(CUST.partyOf(e, 'buyer'));
   }
 
   function buyerLabel(e) {
@@ -273,40 +277,61 @@
   // conservative and the hint says so.
   function multipleHandgunSales(entries, opts) {
     var s = settings(opts);
-    var groups = {};
+
+    // Cluster by identity, then fold together clusters that are probably the
+    // same person spelled differently. Erring toward a warning is the right
+    // trade here: a false positive costs a glance, a miss costs a report that
+    // was owed and never filed.
+    var clusters = [];
     (entries || []).forEach(function (e) {
       if (!e.disposition) return;
       if (BB.dispType(e.disposition.dispositionType).key !== 'sale_4473') return;
       if (!BB.isHandgun(cv(e, 'acquisition.type'))) return;
-      var key = buyerKey(e);
+      var party = CUST.partyOf(e, 'buyer');
+      var key = CUST.identityKey(party);
       if (!key) return;
-      (groups[key] = groups[key] || []).push(e);
+      for (var i = 0; i < clusters.length; i++) {
+        if (clusters[i].key === key || CUST.probablySame(clusters[i].party, party)) {
+          clusters[i].sales.push(e);
+          return;
+        }
+      }
+      clusters.push({ key: key, party: party, sales: [e] });
     });
 
     var out = [];
-    Object.keys(groups).forEach(function (key) {
-      var sales = groups[key].slice().sort(function (a, b) {
+    clusters.forEach(function (cluster) {
+      var key = cluster.key;
+      var sales = cluster.sales.slice().sort(function (a, b) {
         return String(cv(a, 'disposition.date')).localeCompare(String(cv(b, 'disposition.date')));
       });
       // Sliding window: for each sale, collect the later sales that fall inside
       // the window, and report the widest cluster that reaches the threshold.
       for (var i = 0; i < sales.length; i++) {
-        var cluster = [sales[i]];
+        var run = [sales[i]];
         var from = cv(sales[i], 'disposition.date');
         for (var j = i + 1; j < sales.length; j++) {
           if (businessDaysBetween(from, cv(sales[j], 'disposition.date')) > s.handgunWindowBusinessDays - 1) break;
-          cluster.push(sales[j]);
+          run.push(sales[j]);
         }
-        if (cluster.length >= s.handgunThreshold) {
+        if (run.length >= s.handgunThreshold) {
+          var spellings = run.map(function (e) { return BB.party(e, 'buyer'); })
+            .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
           out.push({
             buyerKey: key,
-            buyer: buyerLabel(cluster[0]),
-            count: cluster.length,
-            firstDate: cv(cluster[0], 'disposition.date'),
-            lastDate: cv(cluster[cluster.length - 1], 'disposition.date'),
-            entries: cluster
+            buyer: buyerLabel(run[0]),
+            count: run.length,
+            firstDate: cv(run[0], 'disposition.date'),
+            lastDate: cv(run[run.length - 1], 'disposition.date'),
+            entries: run,
+            // The distinct spellings this run was written under. More than one
+            // means the record does not look like a repeat buyer even though it
+            // is — worth saying out loud, because the licensee may not realize
+            // these were the same person.
+            spellings: spellings,
+            spellingsMerged: spellings.length > 1
           });
-          i += cluster.length - 1; // don't re-report the same cluster from inside it
+          i += run.length - 1; // don't re-report the same run from inside it
         }
       }
     });

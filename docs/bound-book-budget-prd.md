@@ -119,7 +119,8 @@ This gives budget users what they need today and preserves your upgrade path.
 4. **Ledger** — chronological, searchable/filterable list; shows open vs. closed entries; correction history visible.
 5. **Export / Print** — ATF-ready PDF, printable ledger with corrections appendix and certification block, CSV backup, date-range filtering, discontinuance bundle.
 6. **Integrity** — chain verification, head hash, backup/restore (plain or encrypted).
-7. **Packages** — inbound carrier tracking (explicitly outside the legal record).
+7. **Customers** — everyone on the other side of an entry, projected from the log.
+8. **Packages** — inbound carrier tracking (explicitly outside the legal record).
 
 Supporting (not full screens): licensee profile (name, FFL#, address, certifying
 name, backup cadence, alarm thresholds), and a first-run disclaimer.
@@ -132,6 +133,27 @@ which meant the only way to record them was to invent one. Each disposition type
 now carries its own required fields (see the app README for the table). This is
 a compliance-floor issue, not a convenience one — a record you cannot make a
 true entry in is not a compliant record.
+
+### Customers are a projection, never a second source of truth
+
+The people named in the record are not a separate table. They are computed from
+the log on demand, which means there is nothing to keep in sync, nothing to
+back up separately, and no way to change a customer except by correcting the
+entries that name them — through the same append-only path as any other fix.
+
+This also fixed a defect worth recording: the multiple-handgun alarm originally
+grouped sales by an exact match on the buyer's name and address strings, so it
+only fired when the licensee typed both identically each time. Measured against
+six ordinary spelling variations, it caught one. A compliance alarm that depends
+on perfect data entry is worse than no alarm, because a silent one reads as an
+all-clear. **Any future alarm that keys on a person must key on customer
+identity, not on the raw strings.**
+
+**PII floor:** the bound book needs a name and address, or an FFL. The customer
+module stores exactly that and no more — no dates of birth, ID numbers, phone
+numbers or email addresses. Anything richer belongs on the 4473, and duplicating
+it here would create a second, less protected copy of the most sensitive data in
+the business for no compliance benefit.
 
 ### Alarms are policy settings, not legal constants
 
@@ -176,5 +198,7 @@ Integrity rules enforced at the data layer: no hard deletes of entries; edits to
 Beyond the Non-Goals in §2:
 
 - **NFA / SOT recordkeeping.** Supporting it halfway is worse than not supporting it.
+- **"Do not transfer" flags on customers.** Recording an adverse judgment about a named individual inside a compliance record has real consequences for that person and is the licensee's decision, not a default feature. Eligibility is determined by a background check at the time of transfer, never by a note in this app. Open for discussion, not shipped by assumption.
+- **Customer PII beyond the compliance floor.** See the PII floor above.
 - **Legal thresholds as constants.** Every deadline and threshold is a user setting with a stated caveat, not a number in the source that quietly goes stale.
 - **Any claim the software cannot back.** The hash chain proves no in-place edit; it does not prove no wholesale regeneration, and the docs and UI say so and give the user an external anchor instead.

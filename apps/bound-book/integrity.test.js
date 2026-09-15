@@ -175,3 +175,72 @@ test('project applies corrections from the log', () => {
   // and the chain is still valid after the correction
   assert.equal(I.verifyChain(log).ok, true);
 });
+
+// --- safe restore ----------------------------------------------------------
+
+test('headHash identifies a record, and GENESIS means empty', () => {
+  const log = buildLog();
+  assert.equal(I.headHash([]), I.GENESIS);
+  assert.equal(I.headHash(log), log[log.length - 1].hash);
+  // the same history built twice hashes the same; one changed byte does not
+  assert.equal(I.headHash(buildLog()), I.headHash(log));
+});
+
+test('compareChains: identical copies', () => {
+  const res = I.compareChains(buildLog(), buildLog());
+  assert.equal(res.relation, 'identical');
+  assert.equal(res.lostCount, 0);
+});
+
+test('compareChains: a backup that continues this record is safe', () => {
+  const current = buildLog();
+  const ahead = I.appendEvent(current, 'correct', {
+    entryId: 'e1', field: 'acquisition.model', newValue: 'M2', reason: 'x'
+  }, '2026-07-28T00:00:00Z');
+  const res = I.compareChains(current, ahead);
+  assert.equal(res.relation, 'incoming_ahead');
+  assert.equal(res.lostCount, 0);
+});
+
+test('compareChains: an older backup would drop recorded events', () => {
+  const older = buildLog();
+  const current = I.appendEvent(older, 'correct', {
+    entryId: 'e1', field: 'acquisition.model', newValue: 'M2', reason: 'x'
+  }, '2026-07-28T00:00:00Z');
+  const res = I.compareChains(current, older);
+  assert.equal(res.relation, 'incoming_behind');
+  assert.equal(res.lostCount, 1);
+});
+
+test('compareChains: two records that disagree about the past are divergent', () => {
+  const a = buildLog();
+  const b = I.appendEvent(
+    I.appendEvent([], 'acquire', Object.assign({}, acq, { entryId: 'other' }), '2026-07-24T00:00:00Z'),
+    'acquire', Object.assign({}, acq, { entryId: 'other2' }), '2026-07-24T02:00:00Z'
+  );
+  const res = I.compareChains(a, b);
+  assert.equal(res.relation, 'divergent');
+  assert.equal(res.divergedAt, 1);
+  assert.equal(res.lostCount, 3, 'everything from the divergence on would be lost');
+});
+
+test('compareChains: restoring onto an empty machine is always ahead', () => {
+  const res = I.compareChains([], buildLog());
+  assert.equal(res.relation, 'incoming_ahead');
+  assert.equal(res.lostCount, 0);
+});
+
+test('project records when a disposition reached the book', () => {
+  const entries = I.project(buildLog());
+  const e1 = entries.find((e) => e.id === 'e1');
+  assert.equal(e1.disposition.recordedAt, '2026-07-25T00:00:00Z');
+  assert.equal(e1.disposition.date, '2026-07-25');
+});
+
+test('project ignores event types the ledger has no opinion about', () => {
+  let log = buildLog();
+  log = I.appendEvent(log, 'inventory', { sessionId: 'c1', expectedCount: 1 }, '2026-07-29T00:00:00Z');
+  const entries = I.project(log);
+  assert.equal(entries.length, 2, 'still two firearms');
+  assert.equal(I.verifyChain(log).ok, true, 'and still one chain');
+});

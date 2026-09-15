@@ -141,7 +141,9 @@ tr.row-bad td { background: #fbe9ec; }
   .no-print, .topbar, nav { display: none !important; }
   main { max-width: none; margin: 0; }
   .view:not(#view-export) { display: none !important; }
-  #view-export h1, #view-export .hint { display: none; }
+  /* Scoped to direct children: the explanatory hints INSIDE the printed
+     ledger (the corrections appendix, for one) are part of the record. */
+  #view-export > h1, #view-export > .hint, #view-export > fieldset { display: none; }
   body { background: #fff; }
   table { font-size: 11px; }
   th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -170,3 +172,108 @@ tr.row-bad td { background: #fbe9ec; }
 .pkg-note { display: block; font-size: 0.75rem; color: var(--muted); }
 .pkg-flag { display: block; font-size: 0.75rem; color: var(--err); font-weight: 600; }
 tr.row-warn td { background: #fdf3e3; }
+
+/* --- Storage failure: the record on screen is ahead of the record on disk --- */
+.storage-alarm {
+  background: #fdecef;
+  border-bottom: 3px solid var(--err);
+  color: #5c0012;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.storage-alarm .link-btn { color: var(--err); font-weight: 600; }
+
+/* --- Inventory --- */
+.tiles { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-bottom: 1rem; }
+.tile {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  min-width: 7rem;
+  display: flex;
+  flex-direction: column;
+}
+.tile-value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.tile-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.tile-note { flex-basis: 100%; font-size: 0.8rem; color: var(--muted); }
+#inventory-alarms > div + div { margin-top: 0.5rem; }
+#inventory-alarms { margin-bottom: 1rem; }
+#view-inventory h2 { font-size: 1.05rem; margin: 1.6rem 0 0.3rem; }
+#view-inventory h3 { font-size: 0.95rem; margin: 1.2rem 0 0.3rem; }
+#inventory-search, #ledger-search { width: 100%; padding: 0.5rem; margin-bottom: 0.8rem; border: 1px solid var(--line); border-radius: 6px; }
+
+/* --- Physical inventory count --- */
+#count-panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 1rem; }
+.count-head { margin-bottom: 0.8rem; }
+.count-head .bad { color: var(--err); font-weight: 600; }
+.count-scan { display: flex; gap: 0.7rem; align-items: flex-end; flex-wrap: wrap; margin: 0.8rem 0; }
+.count-scan label { display: flex; flex-direction: column; font-size: 0.8rem; color: var(--muted); }
+.count-scan input { padding: 0.45rem; }
+#count-scan-msg:not(:empty) { flex-basis: 100%; }
+tr.row-found td { background: #eef7f1; }
+ul.unexpected { margin: 0.3rem 0; padding-left: 1.2rem; }
+#count-panel textarea { width: 100%; }
+
+/* --- Head hash anchor --- */
+.anchor { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+.anchor h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.hash-value { word-break: break-all; font-size: 0.85rem; margin: 0 0 0.6rem; }
+
+/* --- Forms: optional markers, warnings, secondary buttons --- */
+.opt { color: var(--muted); font-weight: 400; font-size: 0.75rem; }
+.warnings {
+  background: #fdf3e3;
+  border: 1px solid #e8cf9d;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+}
+.warnings ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+button.secondary:hover { background: var(--bg); }
+fieldset.range { background: #fff; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 1rem; }
+fieldset.range label { margin-right: 1rem; }
+.disp-type { font-weight: 600; }
+#dispose-fields { padding: 0; background: none; border: none; }
+
+/* --- Printed record: corrections, appendix, certification, page furniture --- */
+.cover-flag {
+  border: 2px solid var(--ink);
+  padding: 0.4rem;
+  text-align: center;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.chain-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px !important; word-break: break-all; }
+.appendix, .certification { display: none; }
+.certification h3, .appendix h3 { font-size: 1rem; margin: 0 0 0.3rem; }
+.sign-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 1.5rem; font-size: 12px; }
+.print-only { display: none; }
+
+@media print {
+  .appendix, .certification { display: block; break-inside: avoid; margin-top: 1.2rem; }
+  .print-only { display: block; }
+  /* Fixed elements repeat on every printed page, so each sheet identifies the
+     record it belongs to. The page NUMBER comes from the browser's own print
+     header/footer option — a page counter is not something CSS gives a web
+     page in current browsers. */
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    font-size: 9px;
+    color: #444;
+    border-top: 1px solid #999;
+    padding-top: 2px;
+  }
+  .print-ledger-table { page-break-inside: auto; }
+  .print-ledger-table tr { break-inside: avoid; }
+  .print-ledger-table thead { display: table-header-group; }
+  .corr { display: block; font-size: 9px; }
+  .tiles, #count-panel, .anchor { break-inside: avoid; }
+}

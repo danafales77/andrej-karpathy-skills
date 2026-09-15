@@ -140,6 +140,10 @@
 
   // Fold the event log into the current ledger (array of entries). Entry shape
   // matches core.js so all existing rendering/export works unchanged.
+  //
+  // Event types the ledger has no opinion about (an `inventory` count, say) are
+  // skipped here on purpose: they are part of the chain, and therefore part of
+  // the record's integrity, without being part of a firearm's A&D line.
   function project(log) {
     var byId = {};
     var order = [];
@@ -151,13 +155,57 @@
         order.push(entry.id);
       } else if (e.type === 'dispose') {
         id = e.payload.entryId;
-        if (byId[id]) byId[id] = BB.applyDisposition(byId[id], e.payload);
+        if (byId[id]) byId[id] = BB.applyDisposition(byId[id], e.payload, e.timestamp);
       } else if (e.type === 'correct') {
         id = e.payload.entryId;
         if (byId[id]) byId[id] = BB.addCorrection(byId[id], e.payload.field, e.payload.newValue, e.payload.reason, e.timestamp);
       }
     });
     return order.map(function (id) { return byId[id]; });
+  }
+
+  // The hash of the last event. Two independent copies of a record that agree on
+  // this string agree on every byte of their history.
+  //
+  // A hash chain proves nobody edited the history in place. It cannot prove
+  // nobody REGENERATED the whole history from scratch, because anyone holding
+  // the file can recompute every hash in it. Closing that gap needs an anchor
+  // kept outside the file: write this value down somewhere you do not control
+  // (print it on the ledger, mail it to yourself, file it with the backup) and a
+  // regenerated chain no longer matches the copy you anchored.
+  function headHash(log) {
+    return log.length ? log[log.length - 1].hash : GENESIS;
+  }
+
+  // How an incoming log relates to the one on this machine. Restore is the only
+  // operation in the app that can destroy recorded history, so it asks first:
+  //   identical       — same record, nothing to do
+  //   incoming_ahead  — the backup continues this record (safe to restore)
+  //   incoming_behind — this machine holds events the backup does not (restoring
+  //                     would drop them)
+  //   divergent       — the two chains disagree about the past; one of them is
+  //                     not this record's history
+  function compareChains(current, incoming) {
+    current = current || [];
+    incoming = incoming || [];
+    var n = Math.min(current.length, incoming.length);
+    for (var i = 0; i < n; i++) {
+      if (current[i].hash !== incoming[i].hash) {
+        return {
+          relation: 'divergent', divergedAt: i + 1,
+          currentCount: current.length, incomingCount: incoming.length,
+          lostCount: current.length - i
+        };
+      }
+    }
+    var base = { currentCount: current.length, incomingCount: incoming.length, lostCount: 0 };
+    if (current.length === incoming.length) base.relation = 'identical';
+    else if (current.length < incoming.length) base.relation = 'incoming_ahead';
+    else {
+      base.relation = 'incoming_behind';
+      base.lostCount = current.length - incoming.length;
+    }
+    return base;
   }
 
   // --- backup / continuity ---
@@ -229,6 +277,8 @@
     hashEvent: hashEvent,
     appendEvent: appendEvent,
     verifyChain: verifyChain,
+    headHash: headHash,
+    compareChains: compareChains,
     project: project,
     makeBackup: makeBackup,
     parseBackup: parseBackup,

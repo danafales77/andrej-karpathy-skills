@@ -111,14 +111,36 @@ are no longer the *system of record* — the chained log is.
 
 This gives budget users what they need today and preserves your upgrade path.
 
-## 5. Scope — Screens (target: ~4)
+## 5. Scope — Screens
 
-1. **Acquire** — form to log an incoming firearm (all Acquisition fields).
-2. **Dispose** — select an open (undisposed) firearm, log the Disposition fields.
-3. **Ledger** — chronological, searchable/filterable list; shows open vs. closed entries; correction history visible.
-4. **Export / Print** — generate ATF-ready PDF, printable ledger, and CSV backup.
+1. **Acquire** — form to log an incoming firearm (all Acquisition fields), with bulk serial entry for a single shipment.
+2. **Dispose** — select an open (undisposed) firearm, pick how it left, log the fields that disposition type actually requires.
+3. **Inventory** — what is on hand, aged; the alarms the record raises about itself; physical inventory counts.
+4. **Ledger** — chronological, searchable/filterable list; shows open vs. closed entries; correction history visible.
+5. **Export / Print** — ATF-ready PDF, printable ledger with corrections appendix and certification block, CSV backup, date-range filtering, discontinuance bundle.
+6. **Integrity** — chain verification, head hash, backup/restore (plain or encrypted).
+7. **Packages** — inbound carrier tracking (explicitly outside the legal record).
 
-Supporting (not full screens): simple licensee profile (name, FFL#, address for headers), and a first-run disclaimer.
+Supporting (not full screens): licensee profile (name, FFL#, address, certifying
+name, backup cadence, alarm thresholds), and a first-run disclaimer.
+
+### Dispositions are not all the same shape
+
+A single required-field list across all dispositions was a design error: it made
+a theft, an FFL-to-FFL transfer and a destruction all demand a 4473 number,
+which meant the only way to record them was to invent one. Each disposition type
+now carries its own required fields (see the app README for the table). This is
+a compliance-floor issue, not a convenience one — a record you cannot make a
+true entry in is not a compliant record.
+
+### Alarms are policy settings, not legal constants
+
+The app surfaces patterns already present in the data: multiple handguns to one
+non-licensee inside a window, entries that reached the book later than policy
+allows, firearms open far longer than usual. Every threshold is user-configurable
+and labelled as the licensee's policy, because each approximates a rule with
+conditions this app does not model (and state variants it does not know). The
+code must not encode a legal threshold as a constant that goes stale silently.
 
 ## 6. Data Model (sketch)
 
@@ -126,7 +148,10 @@ Supporting (not full screens): simple licensee profile (name, FFL#, address for 
   - `id`, acquisition fields, disposition fields (nullable until disposed), `status` (open/disposed), `created_at`.
 - **Correction** (append-only)
   - `entry_id`, `field`, `old_value`, `new_value`, `reason`, `corrected_at`. Never mutate the original field in place — render the line-out from these records.
-- **LicenseeProfile** — header data for exports.
+- **LicenseeProfile** — header data for exports, backup cadence, alarm thresholds.
+- **InventoryCount** (append-only, in the chain) — a dated attestation of what was
+  physically found: expected vs. found, what was missing, and what was present but
+  not in the book. Not part of any firearm's A&D line; it is a fact about the record.
 
 Integrity rules enforced at the data layer: no hard deletes of entries; edits to regulated fields go through the Correction append path.
 
@@ -139,8 +164,17 @@ Integrity rules enforced at the data layer: no hard deletes of entries; edits to
 
 ## 8. Open Questions
 
-1. **State-level rules** — any target states with extra logging (e.g., specific record formats, additional retention)? Budget tier may need a "state notes" flag.
-2. **Multi-firearm transactions** — support acquiring several firearms in one entry session, or strictly one-at-a-time to keep it simple?
-3. **Backup responsibility** — is CSV/PDF export enough for v1, or do we owe an automated backup story even at the budget tier?
-4. **Distribution** — desktop/local-first (data stays on the user's machine, good for a privacy-sensitive audience) vs. hosted? Local-first pairs well with Option A.
-5. **Upgrade path** — confirm we're committing to the Option A→B migration path so the integrity work isn't wasted.
+1. **State-level rules** — any target states with extra logging (e.g., specific record formats, additional retention)? Budget tier may need a "state notes" flag. **Still open.** The alarm thresholds are configurable partly to absorb state variation, but nothing models a state rule directly.
+2. ~~**Multi-firearm transactions**~~ — **Answered: support them.** One shipment is one form fill with a pasted list of serials; each serial still becomes its own entry with its own line. Strict one-at-a-time was costing real users real minutes per shipment for no compliance benefit.
+3. ~~**Backup responsibility**~~ — **Answered: more than export.** Full-fidelity chained JSON backup, change-based and calendar-based reminders, verify-on-restore, chain comparison before any destructive restore, and passphrase-encrypted backups so the offsite copy can live in a synced folder. What remains manual is *moving* the file offsite.
+4. **Distribution** — **now the most consequential open question.** Local-first is right for this audience, but browser local storage is not a safe home for a legal record: browser settings can clear it, and a `file://` page cannot use the File System Access API to own a real file (no secure context). Writes are checked and failures are loud, which is the ceiling for this substrate. A desktop wrap (Tauri/Electron) owning a real file on disk is the fix. **Decision needed.**
+5. ~~**Upgrade path**~~ — **Answered: committed, and done.** The variance is approved and the app operates as Option B.
+6. **NFA / SOT items** — deliberately out of scope so far. A different recordkeeping regime with its own forms, approvals and retention. **Decision needed on whether this becomes a separate tier or stays permanently out.**
+
+## 9. Deliberately excluded
+
+Beyond the Non-Goals in §2:
+
+- **NFA / SOT recordkeeping.** Supporting it halfway is worse than not supporting it.
+- **Legal thresholds as constants.** Every deadline and threshold is a user setting with a stated caveat, not a number in the source that quietly goes stale.
+- **Any claim the software cannot back.** The hash chain proves no in-place edit; it does not prove no wholesale regeneration, and the docs and UI say so and give the user an external anchor instead.

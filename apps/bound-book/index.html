@@ -23,11 +23,16 @@
     </div>
   </div>
 
+  <!-- Storage failure. Not dismissable: if this is showing, the record on screen
+       is ahead of the record on disk and the only safe move is to export. -->
+  <div id="storage-alarm" class="storage-alarm hidden no-print"></div>
+
   <header class="topbar no-print">
     <div class="brand">Bound Book <span class="tag">budget</span></div>
     <nav>
       <button data-view="acquire" class="active">Acquire</button>
       <button data-view="dispose">Dispose</button>
+      <button data-view="inventory">Inventory</button>
       <button data-view="packages">Packages</button>
       <button data-view="ledger">Ledger</button>
       <button data-view="export">Export / Print</button>
@@ -45,44 +50,86 @@
       <div id="acquire-from-package" class="pkg-banner hidden"></div>
       <form id="acquire-form" class="grid">
         <label>Date received<input name="dateReceived" type="date" required /></label>
-        <label>Manufacturer / Importer<input name="mfrImporter" required /></label>
+        <label>Manufacturer / Importer<input name="mfrImporter" list="mfr-options" required /></label>
         <label>Model<input name="model" required /></label>
         <label>Serial number<input name="serial" required /></label>
-        <label>Type<input name="type" placeholder="Pistol, Rifle, Receiver…" required /></label>
-        <label>Caliber / Gauge<input name="caliber" required /></label>
+        <label>Type<input name="type" list="type-options" placeholder="Pistol, Rifle, Receiver…" required /></label>
+        <label>Caliber / Gauge<input name="caliber" list="caliber-options" required /></label>
         <fieldset class="span2">
           <legend>Source</legend>
           <label>Name<input name="sourceName" /></label>
           <label>Address<input name="sourceAddress" /></label>
           <label>or FFL #<input name="sourceFfl" placeholder="if from a licensee" /></label>
         </fieldset>
+        <label class="span2">Paperwork location <span class="opt">optional</span>
+          <input name="docLocation" placeholder="e.g. Binder A, tab 12 — where the invoice / 4473 lives" />
+        </label>
+
+        <details class="span2" id="bulk-add">
+          <summary>Several of the same thing (one shipment, many serials)</summary>
+          <p class="hint">Fill the form above once, then paste the rest of the serial numbers
+            here — one per line, or comma separated. Each becomes its own entry with its own
+            line in the book.</p>
+          <label>Additional serial numbers
+            <textarea name="bulkSerials" rows="4" placeholder="SN0002&#10;SN0003&#10;SN0004"></textarea>
+          </label>
+        </details>
+
         <div class="errors span2" id="acquire-errors"></div>
-        <button type="submit" class="span2">Add acquisition</button>
+        <div class="warnings span2 hidden" id="acquire-warnings"></div>
+        <div class="actions span2">
+          <button type="submit">Add acquisition</button>
+          <button type="button" id="btn-acquire-again" class="secondary">Save &amp; add another like this</button>
+        </div>
       </form>
     </section>
 
     <!-- DISPOSE -->
     <section id="view-dispose" class="view hidden">
       <h1>Log a disposition</h1>
-      <p class="hint">Pick an open firearm, then record where it went.</p>
+      <p class="hint">Pick an open firearm, then record where it went. A firearm can leave
+        in more than one way — the type you choose decides which facts the record needs.</p>
       <label class="pick">Open firearm
         <select id="dispose-select"></select>
       </label>
+      <label class="pick">How it left
+        <select id="dispose-type"></select>
+      </label>
+      <p class="hint" id="dispose-type-hint"></p>
       <form id="dispose-form" class="grid">
-        <label>Date of disposition<input name="date" type="date" required /></label>
-        <label>4473 / transfer reference<input name="formSerial" required /></label>
-        <fieldset class="span2">
+        <fieldset class="span2" id="dispose-party">
           <legend>Buyer / Transferee</legend>
           <label>Name<input name="buyerName" /></label>
           <label>Address<input name="buyerAddress" /></label>
           <label>or FFL #<input name="buyerFfl" /></label>
         </fieldset>
-        <label class="span2">Eligibility documentation
-          <input name="eligibilityNote" placeholder="e.g. 4473 + NICS proceed on file, binder A" required />
-        </label>
+        <div class="span2 grid" id="dispose-fields"></div>
         <div class="errors span2" id="dispose-errors"></div>
         <button type="submit" class="span2">Record disposition</button>
       </form>
+    </section>
+
+    <!-- INVENTORY -->
+    <section id="view-inventory" class="view hidden">
+      <h1>Inventory on hand</h1>
+      <p class="hint">Every firearm the book says you still have, and what the record
+        notices about itself.</p>
+
+      <div id="inventory-summary" class="tiles"></div>
+      <div id="inventory-alarms"></div>
+
+      <h2>On hand</h2>
+      <input id="inventory-search" class="no-print" placeholder="Search serial, model, manufacturer, caliber…" />
+      <div id="inventory-table"></div>
+
+      <h2>Physical inventory</h2>
+      <p class="hint">Walk the shelf and tick off what you find. Finishing a count writes a
+        dated, hash-chained record of what was physically present — including anything you
+        found that the book does not account for.</p>
+      <div id="count-panel"></div>
+
+      <h2 class="no-print">Past counts</h2>
+      <div id="count-history" class="no-print"></div>
     </section>
 
     <!-- PACKAGES -->
@@ -143,11 +190,27 @@
     <!-- EXPORT -->
     <section id="view-export" class="view hidden">
       <h1>Export &amp; print</h1>
-      <p class="hint">The printout / PDF is your official bound book. The CSV is your backup.</p>
+      <p class="hint">The printout / PDF and the CSV are the human-readable copies of the
+        record. Corrections travel with them: the original value stays visible, struck
+        through, exactly as it appears in the book.</p>
+
+      <fieldset class="no-print range">
+        <legend>What to include</legend>
+        <label>From<input type="date" id="export-from" /></label>
+        <label>To<input type="date" id="export-to" /></label>
+        <label class="check"><input type="checkbox" id="export-open-only" /> Open entries only</label>
+        <button type="button" id="btn-range-clear" class="secondary">Whole record</button>
+        <p class="hint span2" id="export-range-note"></p>
+      </fieldset>
+
       <div class="actions no-print">
         <button id="btn-print">Print / Save as PDF</button>
         <button id="btn-csv">Download CSV backup</button>
+        <button id="btn-discontinuance" class="secondary">Discontinuance bundle&hellip;</button>
       </div>
+      <p class="hint no-print">For page numbers, turn on <em>Headers and footers</em> in your
+        browser's print dialog — a page counter is not something a web page can draw itself.
+        Every page carries your licensee details and the record's head hash.</p>
       <div id="print-ledger"></div>
     </section>
 
@@ -157,14 +220,22 @@
       <p class="hint">Every action is an entry in an append-only, hash-linked log.
         Editing or removing anything after the fact breaks the chain and is flagged here.</p>
       <div id="integrity-status"></div>
+
+      <div id="anchor-panel" class="anchor"></div>
+
       <p class="hint" style="margin-top:1rem">This log is your electronic system of record (ATF variance on file).
         Keep a current backup — it is your continuity copy and your surrender copy if the license ends.</p>
       <div class="actions no-print">
         <button id="btn-backup">Download full backup (.json)</button>
+        <button id="btn-backup-encrypted" class="secondary">Encrypted backup&hellip;</button>
         <label class="restore-btn">Restore from backup…
           <input type="file" id="restore-input" accept="application/json,.json" hidden />
         </label>
       </div>
+      <p class="hint no-print">A plain backup is your whole record in the clear — fine on a
+        drive you control, not fine in a synced cloud folder. The encrypted one is safe to
+        put anywhere; it is the same record under a passphrase only you hold. Lose the
+        passphrase and the file is gone with it.</p>
       <div id="restore-msg"></div>
       <div id="integrity-log"></div>
     </section>
@@ -177,12 +248,37 @@
         <label>Licensee / Business name<input name="name" /></label>
         <label>FFL number<input name="ffl" /></label>
         <label class="span2">Premises address<input name="address" /></label>
+        <label class="span2">Name that certifies the printed record
+          <input name="certifier" placeholder="who signs the ledger you hand over" />
+        </label>
         <fieldset class="span2">
           <legend>Backup policy</legend>
           <label>Remind me to back up every (days)
             <input name="backupIntervalDays" type="number" min="0" step="1" placeholder="30" />
           </label>
           <p class="hint span2" style="margin:0.3rem 0 0">Set this to your variance's required backup cadence. 0 turns the time-based reminder off. Moving a copy offsite is still a manual step this app can't do for you.</p>
+        </fieldset>
+        <fieldset class="span2">
+          <legend>Alarm thresholds</legend>
+          <p class="hint span2" style="margin:0 0 0.5rem">These drive the warnings on the
+            Inventory screen. They are <strong>your policy settings</strong>, not legal
+            limits — every one approximates a rule with conditions this app does not model.
+            Confirm the real thresholds for your situation and set them here.</p>
+          <label>Handguns to one buyer before warning
+            <input name="handgunThreshold" type="number" min="0" step="1" placeholder="2" />
+          </label>
+          <label>…within (business days)
+            <input name="handgunWindowBusinessDays" type="number" min="0" step="1" placeholder="5" />
+          </label>
+          <label>Acquisition entry limit (business days)
+            <input name="acquisitionEntryLimit" type="number" min="0" step="1" placeholder="1" />
+          </label>
+          <label>Disposition entry limit (business days)
+            <input name="dispositionEntryLimit" type="number" min="0" step="1" placeholder="7" />
+          </label>
+          <label>Flag firearms open longer than (days)
+            <input name="openAgeAlertDays" type="number" min="0" step="1" placeholder="365" />
+          </label>
         </fieldset>
         <button type="submit" class="span2">Save</button>
         <span id="profile-saved" class="saved span2"></span>
@@ -210,9 +306,36 @@
     </div>
   </div>
 
+  <!-- Passphrase modal, shared by encrypted backup and encrypted restore -->
+  <div id="pass-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="pass-title">Passphrase</h2>
+      <p class="hint" id="pass-hint"></p>
+      <form id="pass-form" class="grid">
+        <label class="span2">Passphrase<input name="passphrase" type="password" autocomplete="off" required /></label>
+        <label class="span2 hidden" id="pass-confirm-wrap">Repeat it
+          <input name="confirm" type="password" autocomplete="off" />
+        </label>
+        <div class="errors span2" id="pass-errors"></div>
+        <div class="actions span2">
+          <button type="submit" id="pass-ok">Continue</button>
+          <button type="button" id="pass-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Field suggestions. Free text is always allowed; these only keep spelling
+       consistent, which is what makes the ledger legible and the alarms work. -->
+  <datalist id="mfr-options"></datalist>
+  <datalist id="type-options"></datalist>
+  <datalist id="caliber-options"></datalist>
+
   <script src="core.js"></script>
   <script src="integrity.js"></script>
   <script src="packages.js"></script>
+  <script src="inventory.js"></script>
+  <script src="securebackup.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

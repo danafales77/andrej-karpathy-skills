@@ -1015,6 +1015,7 @@
   function printHeader(sel) {
     var p = loadProfile();
     var chain = INT.verifyChain(log);
+    var mode = BB.recordMode(p);
     return '<div class="ledger-header">' +
       (discontinuanceMode ? '<div class="cover-flag">Records surrendered on discontinuance of license</div>' : '') +
       '<h2>Acquisition &amp; Disposition Record</h2>' +
@@ -1029,6 +1030,13 @@
           ? 'Chain verified: ' + chain.count + ' events, no gaps, nothing altered.'
           : 'INTEGRITY CHECK FAILED: ' + esc(chain.reason)) +
         ' · head hash ' + esc(INT.headHash(log)) +
+      '</div>' +
+      // Whoever reads this page should not have to guess whether they are
+      // holding the record or a copy of it.
+      '<div class="meta record-statement">' + esc(mode.mode.printStatement) +
+        (mode.mode.requiresVariance && p.varianceRef
+          ? ' Variance reference: ' + esc(p.varianceRef) + '.'
+          : '') +
       '</div></div>';
   }
 
@@ -1052,9 +1060,12 @@
 
   function certificationBlock() {
     var p = loadProfile();
+    var mode = BB.recordMode(p);
     return '<div class="certification"><h3>Certification</h3>' +
-      '<p>I certify that the foregoing is a true and complete copy of the Acquisition and ' +
-      'Disposition record maintained under FFL ' + esc(p.ffl || '________') + '.</p>' +
+      '<p>I certify that the foregoing is a true and complete ' +
+      (mode.mode.systemOfRecord === 'log' ? 'copy of the electronic' : '') +
+      ' Acquisition and Disposition record maintained under FFL ' +
+      esc(p.ffl || '________') + '.</p>' +
       '<div class="sign-row"><span>Signature: ______________________________</span>' +
       '<span>Printed: ' + esc(p.certifier || p.name || '______________________________') + '</span>' +
       '<span>Date: ______________</span></div></div>';
@@ -1219,6 +1230,12 @@
   }
 
   function renderIntegrity() {
+    var mode = currentMode();
+    document.getElementById('integrity-mode-note').innerHTML =
+      esc(mode.mode.summary) +
+      (mode.downgraded ? ' <strong>' + esc(mode.reason) + '</strong>' : '') +
+      ' Keep a current backup — it is your continuity copy, and your surrender copy if the licence ends.';
+
     var res = INT.verifyChain(log);
     var statusEl = document.getElementById('integrity-status');
     if (!log.length) {
@@ -1646,16 +1663,42 @@
   });
 
   // --- profile ---
-  var PROFILE_FIELDS = ['name', 'ffl', 'address', 'certifier', 'backupIntervalDays']
-    .concat(Object.keys(INV.DEFAULTS));
+  var PROFILE_FIELDS = ['name', 'ffl', 'address', 'certifier', 'recordMode', 'varianceRef',
+    'backupIntervalDays'].concat(Object.keys(INV.DEFAULTS));
+
+  function currentMode() { return BB.recordMode(loadProfile()); }
+
+  function renderRecordModeState() {
+    var res = currentMode();
+    var el = document.getElementById('record-mode-state');
+    if (res.downgraded) {
+      el.innerHTML = alertLine('backup-warn', '&#9888; ' + esc(res.reason));
+    } else {
+      el.innerHTML = alertLine('chain-ok', '&#10003; ' + esc(res.mode.short) + ' — ' +
+        esc(res.mode.summary));
+    }
+  }
 
   (function initProfile() {
     var form = document.getElementById('profile-form');
     var p = loadProfile();
+    document.getElementById('record-mode-select').innerHTML = BB.RECORD_MODES.map(function (m) {
+      return '<option value="' + esc(m.key) + '">' + esc(m.label) + '</option>';
+    }).join('');
     PROFILE_FIELDS.forEach(function (k) { if (form[k]) form[k].value = p[k] || ''; });
+    if (!p.recordMode) form.recordMode.value = BB.DEFAULT_RECORD_MODE;
+    renderRecordModeState();
+    form.recordMode.addEventListener('change', function () {
+      // Show the consequence before it is saved, not after.
+      var preview = BB.recordMode({ recordMode: form.recordMode.value, varianceRef: form.varianceRef.value });
+      document.getElementById('record-mode-state').innerHTML = preview.downgraded
+        ? alertLine('backup-warn', '&#9888; ' + esc(preview.reason))
+        : alertLine('chain-ok', '&#10003; ' + esc(preview.mode.short) + ' — ' + esc(preview.mode.summary));
+    });
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
       if (!saveProfile(formData(this))) return;
+      renderRecordModeState();
       document.getElementById('profile-saved').textContent = 'Saved.';
       setTimeout(function () { document.getElementById('profile-saved').textContent = ''; }, 1500);
     });

@@ -272,3 +272,44 @@ test('fieldLabel renders correction paths for humans', () => {
   assert.equal(BB.fieldLabel('disposition.formSerial'), 'Disposition — 4473 / transfer reference');
   assert.equal(BB.fieldLabel('disposition.buyerFfl'), 'Buyer FFL');
 });
+
+// --- record mode: whose claim is it, anyway? -------------------------------
+
+test('the default record mode is the cautious one', () => {
+  // Nothing configured must never mean "this licensee holds a variance".
+  assert.equal(BB.recordMode({}).mode.key, 'companion');
+  assert.equal(BB.recordMode(undefined).mode.key, 'companion');
+  assert.equal(BB.recordMode({ recordMode: '' }).mode.key, 'companion');
+  assert.equal(BB.recordMode({ recordMode: 'something-else' }).mode.key, 'companion');
+  assert.equal(BB.recordMode({}).mode.systemOfRecord, 'print');
+});
+
+test('electronic mode needs both an explicit choice and a named variance', () => {
+  const chosen = BB.recordMode({ recordMode: 'electronic' });
+  assert.equal(chosen.mode.key, 'companion', 'a claim you cannot name is not a claim');
+  assert.equal(chosen.downgraded, true);
+  assert.match(chosen.reason, /no variance reference/i);
+
+  const complete = BB.recordMode({ recordMode: 'electronic', varianceRef: 'VAR-2026-0142' });
+  assert.equal(complete.mode.key, 'electronic');
+  assert.equal(complete.downgraded, false);
+  assert.equal(complete.reason, '');
+  assert.equal(complete.mode.systemOfRecord, 'log');
+});
+
+test('a blank variance reference does not count as one', () => {
+  assert.equal(BB.recordMode({ recordMode: 'electronic', varianceRef: '   ' }).downgraded, true);
+});
+
+test('each mode carries the statement its printout should make', () => {
+  const companion = BB.recordMode({}).mode;
+  assert.match(companion.printStatement, /printed ledger is the official/i);
+  const electronic = BB.recordMode({ recordMode: 'electronic', varianceRef: 'X' }).mode;
+  assert.match(electronic.printStatement, /electronic log is the record/i);
+  // and the two never say the same thing
+  assert.notEqual(companion.printStatement, electronic.printStatement);
+});
+
+test('only the electronic mode claims to require a variance', () => {
+  assert.equal(BB.RECORD_MODES.filter((m) => m.requiresVariance).map((m) => m.key).join(), 'electronic');
+});

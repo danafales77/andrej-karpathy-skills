@@ -420,6 +420,68 @@ test('the app boots and every screen works in a real browser', {
   if (!/identical/i.test(encMsg)) problems.push('encrypted restore failed: ' + encMsg);
   step('encrypted backup decrypts in the browser and verifies');
 
+  // --- the record mode is the licensee's claim, not the app's --------------
+  await page.click('nav button[data-view=export]');
+  await page.waitForTimeout(150);
+  await page.emulateMedia({ media: 'print' });
+  await page.waitForTimeout(100);
+  let printed = await page.locator('#print-ledger').innerText();
+  if (!/printed ledger is the official/i.test(printed)) {
+    problems.push('default printout does not claim the paper is the record: ' + printed.slice(0, 200));
+  }
+  if (/variance/i.test(printed)) {
+    problems.push('an unconfigured install asserted a variance on the printout');
+  }
+  await page.emulateMedia({ media: 'screen' });
+  step('by default the printout says the paper is the official record');
+
+  // Choosing electronic mode without naming the variance must not take effect.
+  await page.click('nav button[data-view=profile]');
+  await page.waitForTimeout(150);
+  await page.selectOption('#record-mode-select', 'electronic');
+  await page.click('#profile-form button[type=submit]');
+  await page.waitForTimeout(200);
+  if (!/no variance reference/i.test(await page.locator('#record-mode-state').innerText())) {
+    problems.push('electronic mode without a variance reference was accepted silently');
+  }
+  await page.click('nav button[data-view=export]');
+  await page.waitForTimeout(150);
+  await page.emulateMedia({ media: 'print' });
+  await page.waitForTimeout(100);
+  printed = await page.locator('#print-ledger').innerText();
+  if (!/printed ledger is the official/i.test(printed)) {
+    problems.push('an unnamed variance still flipped the printed claim');
+  }
+  await page.emulateMedia({ media: 'screen' });
+  step('electronic mode without a named variance does not take effect');
+
+  // With the variance named, the claim changes — and says which approval.
+  await page.click('nav button[data-view=profile]');
+  await page.waitForTimeout(150);
+  await page.fill('[name=varianceRef]', 'VAR-2026-0142');
+  await page.click('#profile-form button[type=submit]');
+  await page.waitForTimeout(200);
+  await page.click('nav button[data-view=export]');
+  await page.waitForTimeout(150);
+  await page.emulateMedia({ media: 'print' });
+  await page.waitForTimeout(100);
+  printed = await page.locator('#print-ledger').innerText();
+  if (!/electronic log is the record/i.test(printed)) {
+    problems.push('a named variance did not change the printed claim: ' + printed.slice(0, 200));
+  }
+  if (!/VAR-2026-0142/.test(printed)) {
+    problems.push('the printout does not name the variance it relies on');
+  }
+  await page.emulateMedia({ media: 'screen' });
+  step('a named variance changes the printed claim and cites the approval');
+
+  // Put it back so the rest of the run exercises the default posture.
+  await page.click('nav button[data-view=profile]');
+  await page.waitForTimeout(150);
+  await page.selectOption('#record-mode-select', 'companion');
+  await page.click('#profile-form button[type=submit]');
+  await page.waitForTimeout(200);
+
   // --- a damaged record must scream, not show a blank book -----------------
   // Before this was fixed, truncating the stored record made the app report
   // "No entries yet" with no warning anywhere — a licensee would conclude they
@@ -486,5 +548,5 @@ test('the app boots and every screen works in a real browser', {
   await browser.close();
 
   assert.deepEqual(problems, [], 'browser smoke test found problems');
-  assert.ok(steps.length >= 25, 'expected every flow to be exercised, got ' + steps.length);
+  assert.ok(steps.length >= 28, 'expected every flow to be exercised, got ' + steps.length);
 });

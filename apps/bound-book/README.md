@@ -41,17 +41,38 @@ browser's local storage — nothing is sent anywhere.
 
 ## The record model (important)
 
-With the **ATF variance approved**, this app is the **electronic system of
-record**. The record is a tamper-evident, hash-chained, append-only log:
+**Which copy is your legal record is your declaration, not this software's
+assumption.** *Licensee → Record mode* has two settings:
+
+| Mode | The legal record is | Requires |
+|---|---|---|
+| **Companion** (default) | the printed / PDF ledger you keep | nothing |
+| **Electronic system of record** | the hash-chained log in this app | an ATF variance granted to **you** |
+
+This used to be hardcoded. The app asserted "ATF variance on file" as a
+statement of fact — true for exactly one licensee, the one it was built for.
+Shipped to anyone else, it would have told them they may run a paperless system
+of record when they may hold no approval to do so. **A claim about your
+regulatory standing is yours to make.**
+
+The default is the cautious one, deliberately. Running in companion mode while
+holding a variance costs you some printing; running in electronic mode without
+one is a compliance problem. And selecting electronic mode is not enough on its
+own — you must also record the **variance reference**. If you cannot name the
+approval, the app stays in companion mode, says so on the Licensee screen, and
+prints the companion statement. The printed ledger states which mode produced
+it, and cites the variance when there is one.
+
+Either way the underlying record is a tamper-evident, hash-chained, append-only
+log:
 
 - There is no edit-in-place or delete — the only way to change a recorded value
   is a **logged correction**, so the record stays tamper-evident by construction
   (see the **Integrity** screen and `integrity.js`).
-- Print / Save-as-PDF and CSV remain available as the human-readable
-  **surrender copy**, but they are no longer the system of record — the log is.
-  **They carry the corrections with them**: the original value appears struck
-  through in the printed ledger, and every correction is listed in full in the
-  appendix, so the surrender copy can never look like a silent overwrite.
+- Print / Save-as-PDF and CSV **carry the corrections with them**: the original
+  value appears struck through in the printed ledger, and every correction is
+  listed in full in the appendix, so neither copy can ever look like a silent
+  overwrite.
 
 ### How a firearm can leave
 
@@ -91,8 +112,8 @@ replace keeping an offsite copy.
 **Backup cadence (policy).** In *Licensee → Backup policy* you can set a
 required backup interval in days. When your record is otherwise fully backed up
 but the last backup is older than that interval, the Integrity screen reminds
-you. Set the interval to whatever your variance requires; `0` turns the
-time-based reminder off. **Moving a copy offsite is a manual step this
+you. Set the interval to whatever your situation requires (a variance will
+usually specify one); `0` turns the time-based reminder off. **Moving a copy offsite is a manual step this
 local-first app cannot do for you.**
 
 **Encrypted backups.** A plain backup is your whole record in the clear — names,

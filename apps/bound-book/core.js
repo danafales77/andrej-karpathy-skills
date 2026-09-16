@@ -127,6 +127,82 @@
     });
   }
 
+  // --- record mode -----------------------------------------------------------
+  // WHAT IS THE LEGAL RECORD: the paper you print, or the log in this app?
+  //
+  // This used to be hardcoded. The app asserted "ATF variance on file" as a
+  // statement of fact, which was true for exactly one licensee — the one it was
+  // built for. Shipped to anyone else, the product would tell them they may run
+  // a paperless system of record when they may have no approval to do so. A
+  // claim about someone's regulatory standing is theirs to make, not the
+  // software's to assume.
+  //
+  // So it is configured, and the DEFAULT IS THE CAUTIOUS ONE. Running in
+  // companion mode when you hold a variance costs you some printing. Running in
+  // electronic mode when you do not is a compliance problem, so nothing but an
+  // explicit, deliberate setting can turn it on.
+  var RECORD_MODES = [
+    {
+      key: 'companion',
+      label: 'Companion — the printed ledger is my official record',
+      short: 'Companion record',
+      // Option A in the PRD.
+      systemOfRecord: 'print',
+      summary: 'This app helps you keep the record. The printed or PDF ledger is ' +
+        'the official one: print it, keep it, and the paper is what you produce on demand.',
+      printStatement: 'This printed ledger is the official Acquisition and Disposition record.',
+      requiresVariance: false
+    },
+    {
+      key: 'electronic',
+      label: 'Electronic — this app is my system of record (ATF variance on file)',
+      short: 'Electronic system of record',
+      // Option B in the PRD.
+      systemOfRecord: 'log',
+      summary: 'The hash-chained log in this app is your legal record. Print and CSV ' +
+        'are the human-readable surrender copy. This requires ATF approval — a variance ' +
+        'granted to you, not to this software.',
+      printStatement: 'This is a printed copy of an electronic Acquisition and Disposition ' +
+        'record maintained under an approved variance. The electronic log is the record.',
+      requiresVariance: true
+    }
+  ];
+
+  var DEFAULT_RECORD_MODE = 'companion';
+
+  function isBlank(v) {
+    return v === undefined || v === null || String(v).trim() === '';
+  }
+
+  // The mode actually in force, given the licensee profile.
+  //
+  // Electronic mode requires BOTH an explicit choice and a recorded variance
+  // reference. That second condition is a deliberate forcing function: if you
+  // cannot name the approval, you should not be relying on it, and the app
+  // should not be printing that you do. Falling back is silent to the caller but
+  // never silent to the user — `downgraded` says it happened and why.
+  function recordMode(profile) {
+    profile = profile || {};
+    var wanted = profile.recordMode === 'electronic' ? 'electronic' : DEFAULT_RECORD_MODE;
+    if (wanted === 'electronic' && isBlank(profile.varianceRef)) {
+      return {
+        mode: modeByKey(DEFAULT_RECORD_MODE),
+        downgraded: true,
+        reason: 'Electronic system of record is selected, but no variance reference ' +
+          'is recorded. Until one is entered, this record is treated as a companion ' +
+          'to your printed ledger and the printout says so.'
+      };
+    }
+    return { mode: modeByKey(wanted), downgraded: false, reason: '' };
+  }
+
+  function modeByKey(key) {
+    for (var i = 0; i < RECORD_MODES.length; i++) {
+      if (RECORD_MODES[i].key === key) return RECORD_MODES[i];
+    }
+    return RECORD_MODES[0];
+  }
+
   // --- type vocabulary -------------------------------------------------------
   // ATF's own "type" field is free text, and real records contain everything from
   // "pistol" to "receiver". These lists drive datalist suggestions rather than a
@@ -166,10 +242,6 @@
   }
 
   // --- validation ------------------------------------------------------------
-
-  function isBlank(v) {
-    return v === undefined || v === null || String(v).trim() === '';
-  }
 
   // A source/buyer is valid if we have (name AND address) OR an FFL number.
   function partyValid(name, address, ffl) {
@@ -477,6 +549,9 @@
     DISP_TYPES: DISP_TYPES,
     DISP_FIELD_LABELS: DISP_FIELD_LABELS,
     DEFAULT_DISP_TYPE: DEFAULT_DISP_TYPE,
+    RECORD_MODES: RECORD_MODES,
+    DEFAULT_RECORD_MODE: DEFAULT_RECORD_MODE,
+    recordMode: recordMode,
     TYPE_SUGGESTIONS: TYPE_SUGGESTIONS,
     CALIBER_SUGGESTIONS: CALIBER_SUGGESTIONS,
     MFR_SUGGESTIONS: MFR_SUGGESTIONS,

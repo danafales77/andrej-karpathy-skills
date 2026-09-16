@@ -77,19 +77,29 @@ The app **is** the legal bound book; no paper.
 - **Cons:** ATF imposes specific conditions on electronic A&D systems (typically prior approval/variance, guaranteed no data gaps, tamper-evidence, reliable reproduction on demand, defined backup/continuity). Materially more to build, test, and stand behind legally. Overkill for the budget persona.
 
 ### Recommendation
-Originally: **ship Option A** and design so upgrading to Option B is a
-positioning + hardening step, not a rewrite. That path was followed — the
-integrity features were built on the append-only model from the start.
+**Ship Option A as the default and let Option B be switched on by the licensee
+who holds the approval.** The integrity work was built on the append-only model
+from the start, so supporting both is a matter of what the product *claims*
+rather than how it stores anything.
 
-**Update:** the ATF variance is now **approved**, so the product operates as
-**Option B — an electronic system of record** (see the section below). The
-Option A analysis is retained for history and because the print/PDF/CSV output
-it describes still serves as the human-readable surrender copy.
+This replaces an earlier recommendation to operate unconditionally as Option B
+on the strength of one licensee's approved variance. Per-licensee configuration
+is the only version of that which can ship to a second customer.
 
-### Option B — in effect (variance approved)
+### Option B — available, and configured per licensee
 
-The ATF variance is **approved**, so the app now operates as the **electronic
-system of record**. The requirements are met as follows:
+**Correction to an earlier version of this document.** This section previously
+recorded the variance as approved and described the app as operating
+unconditionally as the electronic system of record. That was true of one
+licensee and got baked into the product: the UI asserted "ATF variance on file"
+as fact for every install. A claim about a licensee's regulatory standing cannot
+be a constant in the source.
+
+Both options now ship, selected in *Licensee → Record mode*, **defaulting to
+Option A**. Option B additionally requires a recorded variance reference before
+it takes effect — an unnamed approval is treated as no approval, and the app
+says so rather than quietly proceeding. Where Option B is in force, its
+requirements are met as follows:
 
 - **Tamper-evidence** — an append-only, **hash-chained event log**
   (`integrity.js`): every action (acquire, dispose, correct) is an immutable
@@ -106,10 +116,9 @@ system of record**. The requirements are met as follows:
   user's backup is the continuity + surrender copy; regular backup is now a
   compliance step, surfaced in the first-run notice and on the Integrity screen.
 
-Print/PDF/CSV remain available as the human-readable surrender copies, but they
-are no longer the *system of record* — the chained log is.
-
-This gives budget users what they need today and preserves your upgrade path.
+Under Option B, print/PDF/CSV are the human-readable surrender copies and the
+chained log is the system of record. Under Option A the printed ledger *is* the
+record. The printout states which, so nobody reading it has to guess.
 
 ## 5. Scope — Screens
 

@@ -15,8 +15,8 @@ jobs:
     name: logic (node --test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - name: Run the suite
@@ -30,8 +30,8 @@ jobs:
     name: browser (smoke.test.js)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
       # Installed at the repo root and never committed: the app itself ships as

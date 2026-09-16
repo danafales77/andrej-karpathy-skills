@@ -297,3 +297,8 @@ fieldset.range label { margin-right: 1rem; }
 /* --- Damaged record: the loudest state the app has --- */
 #damaged-modal .modal-card { border-top: 4px solid var(--err); max-width: 32rem; }
 #damaged-reason { font-weight: 400; }
+
+/* --- Which copy is the record: stated on every printout --- */
+.record-statement { margin-top: 0.3rem; font-style: italic; }
+#record-mode-state { margin-top: 0.5rem; }
+#record-mode-state > div { font-size: 0.85rem; }

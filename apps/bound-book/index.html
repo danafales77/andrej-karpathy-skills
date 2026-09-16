@@ -330,6 +330,24 @@
     </div>
   </div>
 
+  <!-- Damaged record. Shown when the stored book could not be read at all —
+       the one failure that must never be mistaken for an empty book. -->
+  <div id="damaged-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>This record is damaged</h2>
+      <p class="chain-bad" id="damaged-reason"></p>
+      <p><strong>The book you are about to see is empty because the record could not
+         be read — not because it contains nothing.</strong> Anything recorded since
+         your last backup may still be recoverable from the damaged data.</p>
+      <p>Nothing can be added until this is resolved. Writing new entries now would
+         build on top of a broken record.</p>
+      <div class="actions">
+        <button type="button" id="damaged-restore">Restore from a backup</button>
+        <button type="button" id="damaged-download" class="secondary">Download the damaged data</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Passphrase modal, shared by encrypted backup and encrypted restore -->
   <div id="pass-modal" class="modal hidden">
     <div class="modal-card">

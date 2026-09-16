@@ -411,7 +411,6 @@ test('the app boots and every screen works in a real browser', {
   });
   if (/SN-0001/.test(encrypted)) problems.push('encrypted backup leaked a serial number');
   fs.writeFileSync(tmp, encrypted);
-  page.once('dialog', (d) => d.accept());
   await page.setInputFiles('#restore-input', tmp);
   await page.waitForTimeout(300);
   await page.fill('#pass-form [name=passphrase]', 'a long enough passphrase');
@@ -421,8 +420,71 @@ test('the app boots and every screen works in a real browser', {
   if (!/identical/i.test(encMsg)) problems.push('encrypted restore failed: ' + encMsg);
   step('encrypted backup decrypts in the browser and verifies');
 
+  // --- a damaged record must scream, not show a blank book -----------------
+  // Before this was fixed, truncating the stored record made the app report
+  // "No entries yet" with no warning anywhere — a licensee would conclude they
+  // had lost nothing and start writing on top of the wreckage.
+  const beforeDamage = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('boundbook.log.v1')).length);
+  await page.evaluate(() => {
+    const good = localStorage.getItem('boundbook.log.v1');
+    localStorage.setItem('boundbook.log.v1', good.slice(0, Math.floor(good.length / 2)));
+  });
+  await page.reload();
+  await page.waitForTimeout(400);
+
+  if (!(await page.locator('#damaged-modal').isVisible())) {
+    problems.push('a damaged record did not raise the damaged-record modal');
+  }
+  if (!/damaged/i.test(await page.locator('#storage-alarm').innerText())) {
+    problems.push('a damaged record did not raise a persistent banner');
+  }
+  step('a damaged record is announced instead of shown as empty');
+
+  // ...and it must refuse to be written to.
+  await page.click('#damaged-restore');
+  await page.waitForTimeout(200);
+  await page.click('nav button[data-view=acquire]');
+  await page.fill('[name=dateReceived]', '2026-09-12');
+  await page.fill('[name=mfrImporter]', 'Should Not Save');
+  await page.fill('[name=model]', 'X');
+  await page.fill('[name=serial]', 'NOPE-1');
+  await page.fill('[name=type]', 'Pistol');
+  await page.fill('[name=caliber]', '9mm');
+  await page.fill('[name=sourceName]', 'Nobody');
+  await page.fill('[name=sourceAddress]', '1 Nowhere');
+  let refused = false;
+  page.removeAllListeners('dialog'); // don't inherit a handler that never fired
+  page.once('dialog', (d) => { refused = /cannot be added to/i.test(d.message()); d.accept(); });
+  await page.click('#acquire-form button[type=submit]');
+  await page.waitForTimeout(300);
+  if (!refused) problems.push('a damaged record accepted a new entry without objecting');
+  const damagedRaw = await page.evaluate(() => localStorage.getItem('boundbook.log.v1'));
+  if (/NOPE-1/.test(damagedRaw)) {
+    problems.push('a new entry was written on top of the damaged record');
+  }
+  step('a damaged record refuses new entries and preserves the damaged bytes');
+
+  // ...and restoring a good backup clears it.
+  fs.writeFileSync(tmp, backup);
+  await page.click('nav button[data-view=integrity]');
+  await page.waitForTimeout(200);
+  page.removeAllListeners('dialog');
+  page.once('dialog', (d) => d.accept());
+  await page.setInputFiles('#restore-input', tmp);
+  await page.waitForTimeout(400);
+  const healed = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('boundbook.log.v1')).length);
+  if (healed !== beforeDamage) {
+    problems.push('restore did not heal the damaged record: ' + healed + ' vs ' + beforeDamage);
+  }
+  if (await page.locator('#storage-alarm').isVisible()) {
+    problems.push('the damaged-record banner survived a successful restore');
+  }
+  step('restoring a good backup heals the damaged record and clears the alarm');
+
   await browser.close();
 
   assert.deepEqual(problems, [], 'browser smoke test found problems');
-  assert.ok(steps.length >= 22, 'expected every flow to be exercised, got ' + steps.length);
+  assert.ok(steps.length >= 25, 'expected every flow to be exercised, got ' + steps.length);
 });

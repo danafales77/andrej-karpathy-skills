@@ -1,0 +1,58 @@
+name: tests
+
+# The Bound Book app is a legal record for the people who use it, so the test
+# suite should gate merges rather than rely on someone remembering to run it.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  # Fast gate: pure logic, no dependencies, no browser. The browser smoke test
+  # skips itself here because Playwright is not installed — that is the normal,
+  # zero-dependency way a contributor runs the suite.
+  unit:
+    name: logic (node --test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run the suite
+        working-directory: apps/bound-book
+        run: node --test
+
+  # Slower gate: the same suite with Playwright present, so smoke.test.js runs
+  # against the real page. Kept as its own job so a UI failure is distinguishable
+  # from a logic failure at a glance.
+  browser:
+    name: browser (smoke.test.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Installed at the repo root and never committed: the app itself ships as
+      # a double-clickable file with no build step and no dependencies. Node
+      # resolves it from apps/bound-book by walking up to the repo root.
+      - name: Install Playwright + Chromium
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Run the suite with a browser available
+        working-directory: apps/bound-book
+        run: |
+          set -o pipefail
+          node --test 2>&1 | tee test-output.txt
+      # A silently skipped browser test is worse than none: it reports green
+      # while covering nothing.
+      - name: Fail if the smoke test skipped itself
+        working-directory: apps/bound-book
+        run: |
+          if grep -q "Playwright not installed" test-output.txt; then
+            echo "::error::smoke.test.js skipped — Playwright was not visible to it"
+            exit 1
+          fi
+          echo "smoke test ran"

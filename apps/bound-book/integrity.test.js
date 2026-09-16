@@ -244,3 +244,45 @@ test('project ignores event types the ledger has no opinion about', () => {
   assert.equal(entries.length, 2, 'still two firearms');
   assert.equal(I.verifyChain(log).ok, true, 'and still one chain');
 });
+
+// --- a damaged record must never look like an empty one --------------------
+
+test('parseStoredLog: nothing stored is an empty record, not a damaged one', () => {
+  assert.deepEqual(I.parseStoredLog(null), { state: 'empty', log: [] });
+  assert.deepEqual(I.parseStoredLog(undefined), { state: 'empty', log: [] });
+  assert.deepEqual(I.parseStoredLog(''), { state: 'empty', log: [] });
+  assert.deepEqual(I.parseStoredLog('[]'), { state: 'ok', log: [] });
+});
+
+test('parseStoredLog: a readable log comes back intact', () => {
+  const log = buildLog();
+  const res = I.parseStoredLog(JSON.stringify(log));
+  assert.equal(res.state, 'ok');
+  assert.equal(res.log.length, 3);
+  assert.equal(I.verifyChain(res.log).ok, true);
+});
+
+test('parseStoredLog: a truncated record is CORRUPT, never empty', () => {
+  const text = JSON.stringify(buildLog());
+  const res = I.parseStoredLog(text.slice(0, Math.floor(text.length / 2)));
+  assert.equal(res.state, 'corrupt');
+  assert.match(res.reason, /not readable|truncated/i);
+  assert.equal(res.log, undefined, 'a corrupt read must not hand back a usable log');
+});
+
+test('parseStoredLog: garbage and wrong shapes are corrupt, not empty', () => {
+  assert.equal(I.parseStoredLog('not json at all').state, 'corrupt');
+  assert.equal(I.parseStoredLog('{"log":[]}').state, 'corrupt', 'an object is not an event list');
+  assert.equal(I.parseStoredLog('42').state, 'corrupt');
+  assert.equal(I.parseStoredLog('"a string"').state, 'corrupt');
+});
+
+test('parseStoredLog: a valid but tampered log still reads — verifyChain judges it', () => {
+  // Corruption and tampering are different failures with different remedies:
+  // unreadable bytes mean restore from backup, a broken chain means investigate.
+  const log = buildLog();
+  log[0].payload.serial = 'TAMPERED';
+  const res = I.parseStoredLog(JSON.stringify(log));
+  assert.equal(res.state, 'ok', 'it parsed');
+  assert.equal(I.verifyChain(res.log).ok, false, 'and the chain check catches it');
+});

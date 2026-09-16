@@ -21,6 +21,10 @@
   // an in-memory record that no longer matched the disk. Now a failed write is
   // loud, and the caller does not adopt the change.
 
+  // For the working stores only — packages, the backup marker, the in-progress
+  // count, the profile. None of them is the legal record, so falling back to a
+  // default loses convenience, not evidence. The RECORD is deliberately not read
+  // this way: see loadRecord() below, which refuses to treat damaged as empty.
   function readJson(key, fallback) {
     try {
       var raw = localStorage.getItem(key);
@@ -43,6 +47,36 @@
     }
   }
 
+  // Unmissable, and not dismissable. A damaged record is not a notification.
+  function announceDamagedRecord() {
+    var modal = document.getElementById('damaged-modal');
+    document.getElementById('damaged-reason').textContent = recordDamaged.reason;
+    modal.classList.remove('hidden');
+
+    document.getElementById('storage-alarm').innerHTML =
+      '<strong>&#10007; This record is damaged and is NOT being shown.</strong> ' +
+      'The book below is empty because the stored record could not be read — ' +
+      '<em>not</em> because it contains nothing. Nothing can be added until you ' +
+      'restore from a backup.';
+    document.getElementById('storage-alarm').classList.remove('hidden');
+
+    document.getElementById('damaged-restore').addEventListener('click', function () {
+      modal.classList.add('hidden');
+      show('integrity');
+    });
+    var dl = document.getElementById('damaged-download');
+    if (recordDamaged.raw === null) {
+      dl.classList.add('hidden');
+    } else {
+      dl.addEventListener('click', function () {
+        // The damaged bytes are often partly salvageable, and they are the only
+        // copy of anything recorded since the last backup. Never discard them
+        // silently.
+        download('bound-book-damaged-record.txt', recordDamaged.raw, 'text/plain');
+      });
+    }
+  }
+
   function raiseStorageAlarm(err) {
     var el = document.getElementById('storage-alarm');
     el.innerHTML = '<strong>&#10007; This device would not save the record.</strong> ' +
@@ -56,7 +90,27 @@
     if (btn) btn.addEventListener('click', downloadPlainBackup);
   }
 
-  var log = readJson(LOG_KEY, []);
+  // The record is read through parseStoredLog so that "nothing stored" and
+  // "stored but damaged" cannot be confused. A damaged record puts the app into
+  // a read-only state: it refuses to write anything, because the one thing worse
+  // than a damaged bound book is a damaged bound book with fresh entries
+  // written on top of it.
+  var recordDamaged = null;
+  var log = [];
+  (function loadRecord() {
+    var raw = null;
+    try { raw = localStorage.getItem(LOG_KEY); }
+    catch (e) {
+      recordDamaged = { reason: 'This device would not let the record be read. ' + e.message, raw: null };
+      return;
+    }
+    var res = INT.parseStoredLog(raw);
+    if (res.state === 'corrupt') {
+      recordDamaged = { reason: res.reason, raw: raw };
+      return;
+    }
+    log = res.log;
+  })();
   var entries = INT.project(log);
   var packages = readJson(PACKAGES_KEY, []);
   var lastBackup = readJson(BACKUP_KEY, null);
@@ -81,6 +135,12 @@
   // the write succeeded, so what is on screen is always what is on disk.
   // Returns true when the event was recorded.
   function commit(type, payload) {
+    if (recordDamaged) {
+      window.alert('This record is damaged and cannot be added to.\n\n' +
+        'Writing now would build on top of a broken book. Restore from a backup ' +
+        'on the Integrity screen first.');
+      return false;
+    }
     var next = INT.appendEvent(log, type, payload, nowIso());
     if (!persist(LOG_KEY, JSON.stringify(next))) return false;
     log = next;
@@ -1267,6 +1327,12 @@
     if (!persist(LOG_KEY, JSON.stringify(incoming))) return;
     log = incoming;
     entries = INT.project(log);
+    // A successful restore is exactly the remedy for a damaged record.
+    if (recordDamaged) {
+      recordDamaged = null;
+      document.getElementById('storage-alarm').classList.add('hidden');
+      document.getElementById('storage-alarm').innerHTML = '';
+    }
     // The restored data matches a backup file that exists on disk, so it is
     // current as of this restore.
     markBackedUp(nowIso());
@@ -1597,6 +1663,8 @@
 
   // --- disclaimer ---
   (function initDisclaimer() {
+    // A damaged record is the more urgent message; don't stack two modals.
+    if (recordDamaged) return;
     if (localStorage.getItem(DISCLAIMER_KEY)) return;
     var modal = document.getElementById('disclaimer');
     modal.classList.remove('hidden');
@@ -1610,4 +1678,5 @@
   })();
 
   show('acquire');
+  if (recordDamaged) announceDamagedRecord();
 })();

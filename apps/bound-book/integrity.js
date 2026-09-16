@@ -236,6 +236,36 @@
     return { ok: true, log: data.log };
   }
 
+  // Read what storage handed back, and tell the three cases apart.
+  //
+  // "Nothing stored" and "stored but unreadable" are NOT the same thing, and
+  // conflating them is how a damaged record turns into a blank one: the app
+  // reports an empty book, the licensee believes nothing was lost, and the next
+  // entry is written on top of the wreckage. An empty record and a destroyed
+  // record must never look alike.
+  function parseStoredLog(raw) {
+    if (raw === null || raw === undefined || raw === '') {
+      return { state: 'empty', log: [] };
+    }
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return {
+        state: 'corrupt',
+        reason: 'The stored record is not readable — it is not valid JSON. ' +
+          'It was most likely truncated or damaged in place.'
+      };
+    }
+    if (!Array.isArray(data)) {
+      return {
+        state: 'corrupt',
+        reason: 'The stored record is readable but is not a list of events.'
+      };
+    }
+    return { state: 'ok', log: data };
+  }
+
   // The seq of the last event, or 0 for an empty log. Used as the backup marker.
   function headSeq(log) {
     return log.length ? log[log.length - 1].seq : 0;
@@ -282,6 +312,7 @@
     project: project,
     makeBackup: makeBackup,
     parseBackup: parseBackup,
+    parseStoredLog: parseStoredLog,
     headSeq: headSeq,
     backupStatus: backupStatus,
     backupOverdue: backupOverdue

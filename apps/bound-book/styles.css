@@ -293,3 +293,7 @@ fieldset.range label { margin-right: 1rem; }
 .customer-card table { margin-top: 0.6rem; }
 #acquire-known, #dispose-known { width: 100%; padding: 0.4rem; }
 #dispose-known-note { margin: 0.5rem 0 0; }
+
+/* --- Damaged record: the loudest state the app has --- */
+#damaged-modal .modal-card { border-top: 4px solid var(--err); max-width: 32rem; }
+#damaged-reason { font-weight: 400; }

@@ -128,6 +128,23 @@ down somewhere you do not control — it prints on every page of the ledger, and
 it is worth filing with each backup or mailing to yourself. A regenerated chain
 will not match the copy you anchored.
 
+### If the record cannot be read
+
+"Nothing stored" and "stored but damaged" are not the same thing, and the app
+refuses to confuse them. If the stored record cannot be parsed, it does **not**
+quietly show an empty book — it says the record is damaged, keeps saying so in a
+banner, and **refuses to accept new entries**, because the only thing worse than
+a damaged bound book is a damaged bound book with fresh entries written on top.
+
+The damaged bytes are never discarded: they are usually partly salvageable, and
+they are the only copy of anything recorded since the last backup. *Download the
+damaged data* hands them to you. Restoring a good backup clears the state.
+
+A damaged record is a different failure from a **broken chain**, and they have
+different remedies. Unreadable bytes mean restore from backup. A chain that
+verifies as altered means the bytes are fine and something changed the history —
+that is the Integrity screen's job, and it does not block new entries.
+
 ### If this device cannot save
 
 Every write is checked and read back. If the browser refuses one — quota,
@@ -347,6 +364,11 @@ list, not ATF's official manufacturer/importer abbreviation list.**
 cd apps/bound-book
 node --test
 ```
+
+CI runs this on every push and pull request (`.github/workflows/test.yml`): one
+job for the logic, and a second that installs Playwright so the browser test
+actually runs — and fails if it silently skipped, because a skipped browser test
+reports green while covering nothing.
 
 Logic tests need nothing but Node. `smoke.test.js` drives the real page in a
 real browser and covers the wiring — it **skips** unless Playwright happens to
